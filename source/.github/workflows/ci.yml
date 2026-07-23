@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download pre-built GhosttyKit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/download-ghosttykit.sh
+
+      - name: Build
+        run: swift build
+
+      - name: Run tests
+        run: swift test 2>&1 | tee test-output.txt
+
+      - name: Test summary
+        if: always()
+        run: grep -E "(Test run|Suite.*failed)" test-output.txt || echo "Tests completed"

@@ -1,0 +1,20 @@
+# Fonts - same values as the original Huguesmmm/dotfiles kitty.conf
+font-family = MesloLGS NF
+font-size = 15
+
+# Real GitHub Light Default theme, pulled from Muxy's bundled Ghostty
+# theme catalog (github.com's own colors, not hand-picked).
+# Background pinned to the requested #e6e6e6 (overrides the theme's own #fff).
+theme = Nord
+background = 2e3440
+
+background-opacity = 0.95
+background-blur-radius = 30
+
+cursor-style = block
+mouse-hide-while-typing = true
+
+window-padding-x = 10
+window-padding-y = 5
+
+shell-integration = detect

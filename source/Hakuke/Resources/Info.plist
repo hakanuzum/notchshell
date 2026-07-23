@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIconFile</key>
+	<string>hakuke</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.hakuke.app</string>
+	<key>CFBundleName</key>
+	<string>Hakuke</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.3.1</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/hakanuzum/hakuke/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>DO/Ypd5E8hupynUNtIqqxZCs0CNEfeWoKX8ielcAfTM=</string>
+</dict>
+</plist>

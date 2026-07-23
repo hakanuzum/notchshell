@@ -1,0 +1,32 @@
+name: Hakuke
+options:
+  bundleIdPrefix: com.hakuke
+  deploymentTarget:
+    macOS: "14.0"
+
+targets:
+  Hakuke:
+    type: application
+    platform: macOS
+    sources: []
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hakuke.terminal
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+        PRODUCT_NAME: Hakuke
+        SWIFT_VERSION: "5.0"
+
+  HakukeUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: HakukeUITests
+    dependencies:
+      - target: Hakuke
+    settings:
+      base:
+        TEST_TARGET_NAME: Hakuke
+        PRODUCT_BUNDLE_IDENTIFIER: com.hakuke.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"

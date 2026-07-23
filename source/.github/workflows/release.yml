@@ -1,0 +1,259 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: Hakuke
+  BUNDLE_ID: com.hakuke.app
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version $VERSION"
+
+      - name: Check available secrets
+        id: secrets
+        run: |
+          echo "has_signing=${{ secrets.CERTIFICATE_P12 != '' }}" >> "$GITHUB_OUTPUT"
+          echo "has_notarize=${{ secrets.APPLE_ID != '' }}" >> "$GITHUB_OUTPUT"
+          echo "has_sparkle=${{ secrets.SPARKLE_PRIVATE_KEY != '' }}" >> "$GITHUB_OUTPUT"
+          echo "has_tap=${{ secrets.HOMEBREW_TAP_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Select Xcode 26.3
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+
+      - name: Download pre-built GhosttyKit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/download-ghosttykit.sh
+
+      - name: Build universal release binary
+        run: swift build --build-system xcode -c release --arch arm64 --arch x86_64
+
+      - name: Prepare app bundle
+        run: |
+          APP_BUNDLE="build/${{ env.APP_NAME }}.app"
+
+          # Create bundle structure
+          mkdir -p "$APP_BUNDLE/Contents/MacOS"
+          mkdir -p "$APP_BUNDLE/Contents/Frameworks"
+          mkdir -p "$APP_BUNDLE/Contents/Resources"
+
+          # Update version in Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" \
+            Hakuke/Resources/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" \
+            Hakuke/Resources/Info.plist
+
+          # Copy binary (--build-system xcode outputs to .build/apple/Products/Release/)
+          cp .build/apple/Products/Release/${{ env.APP_NAME }} "$APP_BUNDLE/Contents/MacOS/${{ env.APP_NAME }}"
+
+          # Copy Info.plist and icon
+          cp Hakuke/Resources/Info.plist "$APP_BUNDLE/Contents/Info.plist"
+          cp Hakuke/Resources/hakuke.icns "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
+
+          # Copy SPM resource bundles to Contents/Resources/
+          # --build-system xcode generates accessor that checks Bundle.main.resourceURL
+          for bundle in .build/apple/Products/Release/*.bundle; do
+              [ -d "$bundle" ] || continue
+              [ -f "$bundle/Info.plist" ] || [ -f "$bundle/Contents/Info.plist" ] || continue
+              name="$(basename "$bundle")"
+              cp -R "$bundle" "$APP_BUNDLE/Contents/Resources/$name"
+          done
+
+          # Embed Sparkle.framework
+          SPARKLE_SRC=$(find .build -path "*/macos-arm64*/Sparkle.framework" -type d | head -1)
+          [ -z "$SPARKLE_SRC" ] && SPARKLE_SRC=".build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+          cp -R "$SPARKLE_SRC" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+
+          # Add rpath for embedded frameworks
+          install_name_tool -add_rpath "@executable_path/../Frameworks" \
+            "$APP_BUNDLE/Contents/MacOS/${{ env.APP_NAME }}" 2>/dev/null || true
+
+      - name: Import signing certificate
+        if: steps.secrets.outputs.has_signing == 'true'
+        env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+
+      - name: Sign app bundle (inside-out)
+        if: steps.secrets.outputs.has_signing == 'true'
+        run: |
+          APP_BUNDLE="build/${{ env.APP_NAME }}.app"
+          IDENTITY="${{ secrets.SIGNING_IDENTITY }}"
+          ENTITLEMENTS="Hakuke/Resources/Hakuke.entitlements"
+
+          # Sign resource bundles in Resources/
+          for bundle in "$APP_BUNDLE"/Contents/Resources/*.bundle; do
+              [ -d "$bundle" ] || continue
+              codesign --force --sign "$IDENTITY" "$bundle"
+          done
+
+          # Sign Sparkle XPC services and helpers (inside-out)
+          codesign --force --sign "$IDENTITY" --options runtime \
+            "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
+          codesign --force --sign "$IDENTITY" --options runtime \
+            "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
+          codesign --force --sign "$IDENTITY" --options runtime \
+            "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+          codesign --force --sign "$IDENTITY" --options runtime \
+            "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
+          codesign --force --sign "$IDENTITY" --options runtime \
+            "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+
+          # Sign main app bundle
+          codesign --force --sign "$IDENTITY" \
+            --options runtime \
+            --entitlements "$ENTITLEMENTS" \
+            "$APP_BUNDLE"
+
+          codesign --verify --deep --strict "$APP_BUNDLE"
+
+      - name: Ad-hoc sign (when no certificate)
+        if: steps.secrets.outputs.has_signing != 'true'
+        run: |
+          codesign --force --deep --sign - "build/${{ env.APP_NAME }}.app"
+
+      - name: Create DMG
+        run: |
+          hdiutil create -volname "${{ env.APP_NAME }}" \
+            -srcfolder "build/${{ env.APP_NAME }}.app" \
+            -ov -format UDZO \
+            "build/${{ env.APP_NAME }}.dmg"
+
+      - name: Sign DMG
+        if: steps.secrets.outputs.has_signing == 'true'
+        run: |
+          codesign --force --sign "${{ secrets.SIGNING_IDENTITY }}" \
+            "build/${{ env.APP_NAME }}.dmg"
+
+      - name: Notarize DMG
+        if: steps.secrets.outputs.has_notarize == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit "build/${{ env.APP_NAME }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "build/${{ env.APP_NAME }}.dmg"
+
+      - name: Sign update with Sparkle
+        if: steps.secrets.outputs.has_sparkle == 'true'
+        env:
+          SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
+          echo "$SPARKLE_KEY" > "$RUNNER_TEMP/sparkle_key"
+          "$SPARKLE_BIN/sign_update" "build/${{ env.APP_NAME }}.dmg" -f "$RUNNER_TEMP/sparkle_key"
+          rm "$RUNNER_TEMP/sparkle_key"
+
+      - name: Generate appcast
+        if: steps.secrets.outputs.has_sparkle == 'true'
+        env:
+          SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
+          echo "$SPARKLE_KEY" > "$RUNNER_TEMP/sparkle_key"
+
+          mkdir -p /tmp/appcast_dir
+          cp "build/${{ env.APP_NAME }}.dmg" /tmp/appcast_dir/
+
+          "$SPARKLE_BIN/generate_appcast" \
+            --ed-key-file "$RUNNER_TEMP/sparkle_key" \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/" \
+            /tmp/appcast_dir
+
+          rm "$RUNNER_TEMP/sparkle_key"
+          # Fix title to lowercase branding
+          sed -i '' 's|<title>Hakuke</title>|<title>hakuke</title>|' /tmp/appcast_dir/appcast.xml
+          cp /tmp/appcast_dir/appcast.xml build/appcast.xml
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/${{ env.APP_NAME }}.dmg
+            build/appcast.xml
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+
+      - name: Update Homebrew cask
+        if: steps.secrets.outputs.has_tap == 'true' && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc')
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA=$(shasum -a 256 "build/${{ env.APP_NAME }}.dmg" | awk '{print $1}')
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/hakanuzum/homebrew-hakuke.git" /tmp/tap
+          cd /tmp/tap
+
+          python3 -c "
+          v, s = '$VERSION', '$SHA'
+          print(f'''cask \"hakuke\" do
+            version \"{v}\"
+            sha256 \"{s}\"
+
+            url \"https://github.com/hakanuzum/hakuke/releases/download/v#{{version}}/Hakuke.dmg\"
+            name \"Hakuke\"
+            desc \"Drop-down Quake-style terminal for macOS powered by Ghostty\"
+            homepage \"https://hakuke.com\"
+
+            depends_on macos: :sonoma
+
+            app \"Hakuke.app\"
+
+            zap trash: [
+              \"~/Library/Preferences/com.hakuke.terminal.plist\",
+              \"~/Library/Application Support/hakuke\",
+            ]
+          end''')
+          " | sed 's/^          //' > Casks/hakuke.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/hakuke.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "Update hakuke to $VERSION"
+            git push
+          fi

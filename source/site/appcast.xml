@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>hakuke</title>
+        <item>
+            <title>0.1.3</title>
+            <pubDate>Sun, 08 Mar 2026 19:48:29 +0000</pubDate>
+            <sparkle:version>14</sparkle:version>
+            <sparkle:shortVersionString>0.1.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>10.13</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/hakanuzum/hakuke/releases/download/v0.1.3/Hakuke.dmg" length="13316772" type="application/octet-stream" sparkle:edSignature="1kiJyCyZvmDZIuM7A7Vn1fhNFPtyPHr2/hwzuf6Im0Spv4OkEFHtG0Z/dp+FvmL/iIamz7nDKVEqzUfz8nSfBQ=="/>
+        </item>
+    </channel>
+</rss>

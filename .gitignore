@@ -1,0 +1,6 @@
+.DS_Store
+*.zig-cache/
+.ghostty-build-sha
+source/vendor/ghostty/.zig-cache/
+source/.build/
+source/vendor/ghostty/macos/GhosttyKit.xcframework/
