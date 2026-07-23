@@ -1,45 +1,154 @@
 # Hakuke
 
-Quake-style drop-down terminal for macOS. Fork of [menemy/macuake](https://github.com/menemy/macuake) (Ghostty-powered), rebranded and extended with a one-command theme switcher that keeps the terminal app, `lsd`, `starship`, `fzf` and `fish` all on the same color palette.
+> **Alpha** — Quake-style drop-down terminal for macOS, powered by [Ghostty](https://ghostty.org). Fork of [menemy/macuake](https://github.com/menemy/macuake).
 
-## Status
+One hotkey. Instant terminal. `Option+Space` slides it down from the top of any screen.
 
-- `source/` — the forked Swift source (MIT, same as upstream). Building `GhosttyKit.xcframework` requires **Zig 0.15.2 exactly** and currently only builds reliably on a machine with a full Xcode.app install (not just Command Line Tools) — see `source/scripts/build-ghostty.sh`.
-- The current `.dmg` releases were produced by patching the compiled upstream binary (icon, `Info.plist` display name/bundle id) rather than a from-source rebuild, since the local build environment used so far only had Command Line Tools. A couple of strings baked into the compiled binary (permission dialogs, the menu-bar dropdown title) still read "macuake" until someone does a real from-source build.
-- Everything *outside* the compiled binary — theme, fonts, colors, shell integration — is fully rebrandable and covered by `scripts/set-terminal-theme.py`.
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
+![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue)
 
-## Theme switching
+## Features
+
+- **GPU-accelerated** — GhosttyKit Metal renderer. True color, ligatures, GPU text shaping.
+- **Hotkey toggle** — `Option+Space` (customizable) from any app. No Dock icon.
+- **Tabs & split panes** — multiple sessions with horizontal/vertical splits.
+- **Ghostty themes** — use any Ghostty config for fonts, colors, opacity, keybindings.
+- **MCP server** — built-in HTTP server (port 19876) with 17 tools. Control from Claude Code, Cursor, or any MCP client.
+- **Socket API** — Unix socket at `/tmp/hakuke.sock` for scripting.
+- **Multi-display** — follows cursor across screens, notch-aware.
+
+## Install
+
+Download from [Releases](https://github.com/hakanuzum/hakuke/releases), or:
+
+```bash
+curl -LO https://github.com/hakanuzum/hakuke/releases/latest/download/Hakuke.dmg
+open Hakuke.dmg
+# Drag to /Applications
+```
+
+The `.dmg` is ad-hoc signed (not notarized) — first launch needs right-click → Open.
+
+## Usage
+
+Launch Hakuke — it lives in the menu bar (no Dock icon). Press `Option+Space` to toggle.
+
+| Shortcut | Action |
+|----------|--------|
+| `Option+Space` | Toggle terminal |
+| `Cmd+T` | New tab |
+| `Cmd+W` | Close tab |
+| `Cmd+D` | Split horizontal |
+| `Cmd+Shift+D` | Split vertical |
+| `Cmd+]` / `Cmd+[` | Next / previous pane |
+| `Cmd+1`..`9` | Switch to tab N |
+| `Cmd+,` | Settings |
+
+## Appearance / theming
+
+This app targets **any shell** (zsh, fish, bash, whatever) and **any prompt setup** —
+it should never assume a particular user's dotfiles. Two layers:
+
+1. **The terminal itself** (font, palette, opacity, cursor) is entirely a Ghostty config
+   concern: `~/.config/ghostty/config`, and any theme file dropped into
+   `~/.config/ghostty/themes/`. Independent of shell choice.
+2. **Prompt/tool colors** (`starship`, `lsd`, `fzf`, fish's own `fish_color_*`) are each
+   their own separate config with their own hardcoded palette, and *do not* follow the
+   terminal's theme automatically — that's the actual bug pattern that kept resurfacing
+   during development (terminal switches to a light theme, `lsd`/`starship` keep emitting
+   truecolor tuned for a dark one). `scripts/set-terminal-theme.py` is a stopgap: given a
+   Ghostty theme name, it derives a consistent role mapping (red/green/blue/etc.) and
+   regenerates all of the above from the *same* palette in one shot. It's shell-agnostic
+   in principle but currently only writes fish's config — a zsh equivalent, and ideally a
+   prompt-tool-agnostic mechanism, is open.
+3. **Not yet built:** a real in-app theme picker (Settings → Appearance) that does this
+   without a companion script. Settings currently only exposes "Open Config / Reload
+   Config" buttons pointing at the raw Ghostty config file — see Known Issues.
 
 ```bash
 python3 scripts/set-terminal-theme.py "<Ghostty theme name>" [--background HEXRGB] [--font-size N]
 ```
 
-Pulls the named theme's 16-color palette and regenerates, in one shot:
+### Ghostty config
 
-- `~/.config/ghostty/config` (theme + font size)
-- `~/.config/lsd/colors.yaml` and `~/.config/lsd/config.yaml` (`color.when: always` — lsd's `auto` detection doesn't reliably see this app's PTY as color-capable)
-- `~/.config/starship.toml` palette
-- `~/.config/fish/config.fish` (`fish_color_*`, `FZF_DEFAULT_OPTS`, `LS_COLORS`)
+Hakuke uses your Ghostty config (`~/.config/ghostty/config`). Open it from Settings or:
 
-Then restarts the app. The theme file must already exist as `~/.config/ghostty/themes/<name>.conf`, or be reachable via `vendor/ghostty`'s own bundled theme catalog once the submodule is checked out.
+```bash
+echo '{"action":"state"}' | nc -U /tmp/hakuke.sock
+```
 
-## Layout
+## MCP Server
+
+Add to Claude Code:
+
+```bash
+claude mcp add --transport http hakuke http://localhost:19876/mcp
+```
+
+17 tools available: `state`, `list`, `toggle`, `show`, `hide`, `pin`, `unpin`, `new_tab`, `focus`, `close_session`, `execute`, `read`, `paste`, `control_char`, `clear`, `split`, `set_appearance`.
+
+## Socket API
+
+See [API.md](API.md) for the full reference.
+
+```bash
+# Execute a command
+echo '{"action":"execute","command":"ls -la"}' | nc -U /tmp/hakuke.sock
+
+# Read terminal output
+echo '{"action":"read","lines":50}' | nc -U /tmp/hakuke.sock
+```
+
+## Architecture
 
 ```
-source/      forked Swift app (MaQuake/), builds Hakuke.app
-dotfiles/    reference config this repo's theme switcher generates into ~/.config
-scripts/     set-terminal-theme.py
-assets/      icon source (Bilake mountain mark) + built .icns
+Hakuke/Sources/Hakuke/
+├── API/              # ControlServer (socket API)
+├── MCP/              # MCPHTTPServer (MCP over HTTP)
+├── Panes/            # PaneManager, PaneNode tree
+├── Settings/         # SettingsView, HelpView
+├── Tabs/             # TabManager, TabBarView
+├── Terminal/         # GhosttyApp, GhosttyBackend, GhosttyTerminalView
+├── Updates/          # SparkleUpdater
+└── Window/           # WindowController, TerminalPanel, ScreenDetector
 ```
+
+- **GhosttyKit** — vendored xcframework, GPU Metal terminal engine
+- **KeyboardShortcuts** — global hotkey (sindresorhus)
+- **SPM** project (not Xcode), `swift build` / `swift test`
 
 ## Building from source
 
+Requires: macOS 14+, Swift 5.9+, **Zig 0.15.2 exactly** (hard version-gated at compile
+time — 0.16 fails immediately), and a **full Xcode.app install** (Command Line Tools
+alone were not enough to get GhosttyKit's Apple-SDK detection working during
+development of this fork — a lazy-dependency build step failed to resolve the SDK path
+via `xcode-select`/`xcrun` on a CLT-only machine).
+
 ```bash
 git clone --recursive https://github.com/hakanuzum/hakuke.git
-cd hakuke/source
-brew install zig@0.15   # must be 0.15.2, hard version-gated at compile time
+cd hakuke
+brew install zig@0.15   # or download 0.15.2 directly from ziglang.org
 ./scripts/build-ghostty.sh
 swift build -c release
 ```
 
-Needs a full Xcode.app (not just Command Line Tools) for reliable Apple SDK detection during the GhosttyKit build.
+## Known issues
+
+- **Menu bar / dialog text still says the old name in current releases.** The `.dmg`s
+  published so far were produced by patching the *compiled upstream binary* (icon,
+  `Info.plist` display name, bundle id) rather than a from-source rebuild, because the
+  from-source build was blocked (see above) on the machine used to cut those releases.
+  A handful of strings compiled into the binary — permission-prompt dialogs, the
+  menu-bar dropdown title, debug window titles — still read the old name until someone
+  does a real from-source build and publishes that instead. The source tree itself
+  (this repo) has already been fully renamed; it's specifically the *currently
+  published `.dmg`* that's a patched binary, not a rebuild.
+- **No in-app theme picker yet** (see Appearance above) — external script only.
+- Not notarized; Gatekeeper will warn on first launch.
+
+## Attribution / License
+
+MIT — this is a fork of [menemy/macuake](https://github.com/menemy/macuake). See
+[LICENSE](LICENSE).
