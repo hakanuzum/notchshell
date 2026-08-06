@@ -49,6 +49,14 @@ enum AppIdentity {
     /// Environment variable that opts tests into real Ghostty initialization.
     static let testGhosttyEnvVar = "NOTCHSHELL_TEST_GHOSTTY"
 
+    /// True when running under a test host rather than the real app.
+    static var isTestEnvironment: Bool {
+        let info = ProcessInfo.processInfo
+        return info.environment["XCTestConfigurationFilePath"] != nil
+            || info.processName.contains("xctest")
+            || info.processName.contains("swiftpm-testing-helper")
+    }
+
     /// Scratch paths used by the `--debug-window` harness.
     static func debugScratchPath(_ suffix: String) -> String { "/tmp/\(slug)-\(suffix)" }
 

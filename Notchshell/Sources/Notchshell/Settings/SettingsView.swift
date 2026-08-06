@@ -31,6 +31,11 @@ struct SettingsView: View {
     @State private var darkTheme: String =
         GhosttyThemeCatalog.currentSelection()?.darkTheme ?? "Catppuccin Mocha"
     @State private var themeFilter: String = ""
+    @State private var fontFamily: String = TerminalAppearanceSettings.string(.fontFamily) ?? ""
+    @State private var fontSize: Double = TerminalAppearanceSettings.double(.fontSize) ?? 13
+    @State private var backgroundOpacity: Double = TerminalAppearanceSettings.double(.backgroundOpacity) ?? 1
+    @State private var blurRadius: Double = TerminalAppearanceSettings.double(.backgroundBlurRadius) ?? 0
+    @State private var cursorStyle: String = TerminalAppearanceSettings.string(.cursorStyle) ?? "block"
     @State private var themeApplyMessage: String?
     @FocusState private var shellFieldFocused: Bool
 
@@ -222,6 +227,63 @@ struct SettingsView: View {
                         Text("Light = Unclutter-style bottom tabs. Dark = classic top tab bar.")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                    }
+                    .padding(8)
+                }
+
+                GroupBox("Terminal Appearance") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Written to \(ManagedConfig.overridesPath). Your own Ghostty config is included ahead of it and never modified.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        HStack {
+                            Picker("Font:", selection: $fontFamily) {
+                                Text("Ghostty default").tag("")
+                                Divider()
+                                ForEach(TerminalAppearanceSettings.monospacedFontFamilies, id: \.self) { family in
+                                    Text(family).tag(family)
+                                }
+                            }
+                            .onChange(of: fontFamily) {
+                                apply(.fontFamily, fontFamily.isEmpty ? nil : fontFamily)
+                            }
+                        }
+
+                        HStack {
+                            Text("Size:").frame(width: 60, alignment: .leading)
+                            Slider(value: $fontSize, in: 8...32, step: 1) { editing in
+                                if !editing { apply(.fontSize, String(Int(fontSize))) }
+                            }
+                            Text("\(Int(fontSize)) pt").font(.caption).monospacedDigit().frame(width: 46)
+                        }
+
+                        HStack {
+                            Text("Opacity:").frame(width: 60, alignment: .leading)
+                            Slider(value: $backgroundOpacity, in: 0.3...1, step: 0.01) { editing in
+                                if !editing { apply(.backgroundOpacity, String(format: "%.2f", backgroundOpacity)) }
+                            }
+                            Text("\(Int(backgroundOpacity * 100))%").font(.caption).monospacedDigit().frame(width: 46)
+                        }
+
+                        HStack {
+                            Text("Blur:").frame(width: 60, alignment: .leading)
+                            Slider(value: $blurRadius, in: 0...50, step: 1) { editing in
+                                if !editing {
+                                    apply(.backgroundBlurRadius, blurRadius == 0 ? nil : String(Int(blurRadius)))
+                                }
+                            }
+                            Text(blurRadius == 0 ? "off" : "\(Int(blurRadius))")
+                                .font(.caption).monospacedDigit().frame(width: 46)
+                        }
+
+                        Picker("Cursor:", selection: $cursorStyle) {
+                            ForEach(TerminalAppearanceSettings.cursorStyles, id: \.self) { style in
+                                Text(style.capitalized).tag(style)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: cursorStyle) { apply(.cursorStyle, cursorStyle) }
                     }
                     .padding(8)
                 }
@@ -458,6 +520,13 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(PanelChrome.contentBackground(style: windowController.chromeStyle))
         .preferredColorScheme(PanelChrome.colorScheme(style: windowController.chromeStyle))
+    }
+
+    /// Write a setting and reload, so the change is visible immediately rather than
+    /// at the next launch.
+    private func apply(_ setting: TerminalSetting, _ value: String?) {
+        TerminalAppearanceSettings.set(setting, to: value)
+        GhosttyApp.shared.reloadConfig()
     }
 
     private func testAndApplyShell() {

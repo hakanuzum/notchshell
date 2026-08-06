@@ -75,7 +75,7 @@ struct ManagedConfigTests {
     @Test func themeIsWrittenToOurOwnFile() throws {
         try withTemporaryConfigHome { _ in
             ManagedConfig.setTheme("Tokyo Night")
-            let written = try contents(URL(fileURLWithPath: ManagedConfig.themeOverridePath))
+            let written = try contents(URL(fileURLWithPath: ManagedConfig.overridesPath))
             #expect(written.contains("theme = Tokyo Night"))
             #expect(ManagedConfig.currentTheme() == "Tokyo Night")
         }
@@ -120,7 +120,7 @@ struct ManagedConfigTests {
         try withTemporaryConfigHome(ghosttyConfig: "background = #111111\nforeground = #aaaaaa\n") { configHome in
             // Stand in for a theme by overriding background from our own layer.
             ManagedConfig.ensureExists()
-            try "background = #222222\n".write(toFile: ManagedConfig.themeOverridePath,
+            try "background = #222222\n".write(toFile: ManagedConfig.overridesPath,
                                                atomically: true, encoding: .utf8)
 
             let config = try #require(ghostty_config_new())
@@ -146,6 +146,102 @@ struct ManagedConfigTests {
             #expect((fg.r, fg.g, fg.b) == (0xaa, 0xaa, 0xaa),
                     "settings the user set and we do not override must survive")
             _ = configHome
+        }
+    }
+
+    // MARK: - Overrides hold more than the theme
+
+    @Test func overrides_keepOtherKeysWhenOneChanges() throws {
+        try withTemporaryConfigHome { _ in
+            ManagedConfig.setOverride("font-size", to: "15")
+            ManagedConfig.setTheme("Tokyo Night")
+            ManagedConfig.setOverride("background-opacity", to: "0.9")
+
+            #expect(ManagedConfig.override("font-size") == "15")
+            #expect(ManagedConfig.override("theme") == "Tokyo Night")
+            #expect(ManagedConfig.override("background-opacity") == "0.9")
+        }
+    }
+
+    @Test func overrides_settingToNilRemovesTheKey() throws {
+        try withTemporaryConfigHome { _ in
+            ManagedConfig.setOverride("font-family", to: "JetBrainsMono NF")
+            #expect(ManagedConfig.override("font-family") == "JetBrainsMono NF")
+            ManagedConfig.setOverride("font-family", to: nil)
+            #expect(ManagedConfig.override("font-family") == nil)
+        }
+    }
+
+    /// Values must survive a round trip through libghostty, not just through our own
+    /// reader — a key we write in a form Ghostty rejects would fail silently.
+    @Test func overrides_reachGhostty() throws {
+        #expect(Self.ghosttyReady)
+        try withTemporaryConfigHome { _ in
+            ManagedConfig.setOverride("background", to: "#123456")
+
+            let config = try #require(ghostty_config_new())
+            defer { ghostty_config_free(config) }
+            ManagedConfig.load(into: config)
+            ghostty_config_finalize(config)
+            #expect(ghostty_config_diagnostics_count(config) == 0)
+
+            var colour = ghostty_config_color_s()
+            let read = "background".withCString {
+                ghostty_config_get(config, &colour, $0, UInt(strlen($0)))
+            }
+            #expect(read)
+            #expect((colour.r, colour.g, colour.b) == (0x12, 0x34, 0x56))
+        }
+    }
+
+    /// Every key the settings UI can write must be one Ghostty recognises. An
+    /// unrecognised key is not an error — the config loads and the setting silently
+    /// does nothing — so the only way to know is to load it and look for diagnostics.
+    @Test func everySettingKey_isAcceptedByGhostty() throws {
+        #expect(Self.ghosttyReady)
+        try withTemporaryConfigHome { _ in
+            for setting in TerminalSetting.allCases {
+                TerminalAppearanceSettings.set(setting, to: setting.probeValue)
+            }
+
+            let config = try #require(ghostty_config_new())
+            defer { ghostty_config_free(config) }
+            ManagedConfig.load(into: config)
+            ghostty_config_finalize(config)
+
+            var messages: [String] = []
+            let count = ghostty_config_diagnostics_count(config)
+            for i in 0..<count {
+                if let m = ghostty_config_get_diagnostic(config, i).message {
+                    messages.append(String(cString: m))
+                }
+            }
+            #expect(messages.isEmpty, "Ghostty rejected: \(messages)")
+        }
+    }
+
+    // MARK: - Migration from the first layout
+
+    /// The override file was called theme.conf when it only held a theme. Anyone with
+    /// one must keep their settings, and the root config's include must follow it.
+    @Test func migration_movesThemeConfAndRepointsTheInclude() throws {
+        try withTemporaryConfigHome { configHome in
+            let dir = configHome.appendingPathComponent(AppIdentity.slug)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let legacy = dir.appendingPathComponent("theme.conf")
+            try "theme = Tokyo Night\n".write(to: legacy, atomically: true, encoding: .utf8)
+            try """
+            config-file = ?\(ManagedConfig.userGhosttyConfigPath)
+            config-file = \(legacy.path)
+            """.write(to: dir.appendingPathComponent("config"), atomically: true, encoding: .utf8)
+
+            ManagedConfig.ensureExists()
+
+            #expect(!FileManager.default.fileExists(atPath: legacy.path), "theme.conf should be gone")
+            #expect(ManagedConfig.currentTheme() == "Tokyo Night", "the setting must survive")
+            let root = try contents(URL(fileURLWithPath: ManagedConfig.rootPath))
+            #expect(root.contains(ManagedConfig.overridesPath))
+            #expect(!root.contains("theme.conf"))
         }
     }
 
