@@ -44,7 +44,8 @@ echo "==> Copying binary..."
 # other than CFBundleExecutable ("invalid Info.plist (plist or signature have been
 # modified)"), which is how the first product rename surfaced.
 mkdir -p "$(dirname "$BINARY")"
-find "$(dirname "$BINARY")" -mindepth 1 -maxdepth 1 ! -name "$(basename "$BINARY")" -exec rm -rf {} +
+find "$(dirname "$BINARY")" -mindepth 1 -maxdepth 1 \
+    ! -name "$(basename "$BINARY")" ! -name "notchshell-cli" -exec rm -rf {} +
 cp .build/apple/Products/Release/Notchshell "$BINARY"
 
 echo "==> Copying Info.plist..."
@@ -68,6 +69,13 @@ mkdir -p "$GHOSTTY_RES_DIR/themes"
 cp -R "$PROJECT_ROOT/vendor/themes/themes/." "$GHOSTTY_RES_DIR/themes/"
 cp "$PROJECT_ROOT/vendor/themes/LICENSE" "$GHOSTTY_RES_DIR/THEMES-LICENSE"
 echo "    $(find "$GHOSTTY_RES_DIR/themes" -type f | wc -l | tr -d ' ') themes"
+
+echo "==> Copying command line tool..."
+# Lives beside the app binary, the way Ghostty ships its own CLI. Settings links it
+# onto PATH; keeping the real file in the bundle means the link survives updates and
+# disappears when the app is deleted.
+cp "$PROJECT_ROOT/Notchshell/Resources/cli/notchshell-cli" "$APP_BUNDLE/Contents/MacOS/notchshell-cli"
+chmod +x "$APP_BUNDLE/Contents/MacOS/notchshell-cli"
 
 echo "==> Compiling terminfo..."
 # libghostty announces TERM=xterm-ghostty, which no OS ships. Without this every
@@ -136,6 +144,10 @@ for bundle in "$APP_BUNDLE"/Contents/Resources/*.bundle; do
     [ -d "$bundle" ] || continue
     codesign --force --sign "$SIGN_ID" "$bundle"
 done
+
+# The command line tool sits in MacOS/, so codesign treats it as nested code and
+# refuses to verify the bundle until it is signed in its own right.
+codesign --force --sign "$SIGN_ID" "$APP_BUNDLE/Contents/MacOS/notchshell-cli"
 
 # Sign Sparkle components inside-out
 codesign --force --sign "$SIGN_ID" $SIGN_OPTS \

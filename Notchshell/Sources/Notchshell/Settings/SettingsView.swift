@@ -36,6 +36,8 @@ struct SettingsView: View {
     @State private var backgroundOpacity: Double = TerminalAppearanceSettings.double(.backgroundOpacity) ?? 1
     @State private var blurRadius: Double = TerminalAppearanceSettings.double(.backgroundBlurRadius) ?? 0
     @State private var cursorStyle: String = TerminalAppearanceSettings.string(.cursorStyle) ?? "block"
+    @State private var cliMessage: String?
+    @State private var cliInstalledAt: String? = CommandLineInstaller.existingInstallation()
     @State private var themeApplyMessage: String?
     @FocusState private var shellFieldFocused: Bool
 
@@ -227,6 +229,57 @@ struct SettingsView: View {
                         Text("Light = Unclutter-style bottom tabs. Dark = classic top tab bar.")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                    }
+                    .padding(8)
+                }
+
+                GroupBox("Open From Elsewhere") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("macOS has no system-wide default terminal, so \(AppIdentity.displayName) makes itself reachable several ways.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
+                            GridRow {
+                                Text("Finder").font(.caption).foregroundColor(.secondary)
+                                Text("right click a folder › Services › New \(AppIdentity.displayName) Tab Here")
+                                    .font(.caption)
+                            }
+                            GridRow {
+                                Text("Anywhere").font(.caption).foregroundColor(.secondary)
+                                Text(verbatim: "open -a \(AppIdentity.displayName) <folder>")
+                                    .font(.system(size: 11, design: .monospaced))
+                            }
+                            GridRow {
+                                Text("URL").font(.caption).foregroundColor(.secondary)
+                                Text(verbatim: "\(AppIdentity.slug)://<folder>")
+                                    .font(.system(size: 11, design: .monospaced))
+                            }
+                            GridRow {
+                                Text("Editors").font(.caption).foregroundColor(.secondary)
+                                Text(verbatim: "\"terminal.external.osxExec\": \"\(AppIdentity.displayName).app\"")
+                                    .font(.system(size: 11, design: .monospaced))
+                            }
+                        }
+
+                        Divider()
+
+                        HStack(spacing: 10) {
+                            Button(cliInstalledAt == nil ? "Install Command Line Tool" : "Reinstall Command Line Tool") {
+                                installCLI()
+                            }
+                            .buttonStyle(.bordered)
+                            Spacer()
+                        }
+
+                        if let cliInstalledAt {
+                            Text(verbatim: "notchshell → \(cliInstalledAt)")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        if let cliMessage {
+                            Text(cliMessage).font(.caption).foregroundColor(.secondary)
+                        }
                     }
                     .padding(8)
                 }
@@ -527,6 +580,22 @@ struct SettingsView: View {
     private func apply(_ setting: TerminalSetting, _ value: String?) {
         TerminalAppearanceSettings.set(setting, to: value)
         GhosttyApp.shared.reloadConfig()
+    }
+
+    private func installCLI() {
+        switch CommandLineInstaller.install() {
+        case .installed(let path, let onPath):
+            cliInstalledAt = path
+            let directory = (path as NSString).deletingLastPathComponent
+            cliMessage = onPath
+                ? "Installed. Run `\(AppIdentity.slug)` from any shell."
+                : "Installed, but \(directory) may not be on your PATH — add it if the command is not found."
+        case .alreadyInstalled(let path):
+            cliInstalledAt = path
+            cliMessage = "Already installed."
+        case .failed(let reason):
+            cliMessage = reason
+        }
     }
 
     private func testAndApplyShell() {

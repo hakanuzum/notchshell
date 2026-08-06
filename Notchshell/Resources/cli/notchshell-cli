@@ -1,0 +1,63 @@
+#!/bin/sh
+# notchshell — drop the terminal, optionally starting a tab in a directory.
+#
+# Installed into the app bundle and symlinked onto PATH from Settings. It shells out
+# to `open` rather than talking to the control socket so it keeps working when the
+# socket API is turned off — this is a person typing a command, not an external
+# process driving the app, and it should not be gated like one.
+#
+# The file is called notchshell-cli inside the bundle because macOS filesystems are
+# case-insensitive: a file named "notchshell" in Contents/MacOS *is* the app binary
+# "Notchshell", and copying one over the other yields a bundle that cannot launch.
+# The command name comes from the symlink, so this only affects the file on disk.
+
+set -eu
+
+# Resolve through the symlink on PATH to find the bundle we live in.
+self=$0
+while [ -L "$self" ]; do
+    link=$(readlink "$self")
+    case $link in
+        /*) self=$link ;;
+        *)  self=$(dirname "$self")/$link ;;
+    esac
+done
+app=$(cd "$(dirname "$self")/../.." && pwd)   # …/Notchshell.app
+
+usage() {
+    cat <<EOF
+usage: notchshell [path]
+
+  no arguments   drop the terminal
+  path           drop the terminal with a new tab there
+                 (a file opens its containing folder)
+
+Also reachable as:
+  open -a "$app" <path>
+  notchshell://<path>          URL scheme
+  Finder > right click > Services > New Notchshell Tab Here
+EOF
+}
+
+case "${1:-}" in
+    -h|--help|help)
+        usage
+        ;;
+    "")
+        open -a "$app"
+        ;;
+    -*)
+        echo "notchshell: unknown option $1" >&2
+        usage >&2
+        exit 2
+        ;;
+    *)
+        if [ ! -e "$1" ]; then
+            echo "notchshell: no such file or directory: $1" >&2
+            exit 1
+        fi
+        # `open` does not inherit the caller's working directory.
+        target=$(cd "$(dirname "$1")" && printf '%s/%s' "$(pwd)" "$(basename "$1")")
+        open -a "$app" "$target"
+        ;;
+esac

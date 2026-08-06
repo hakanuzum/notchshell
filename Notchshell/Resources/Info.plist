@@ -16,6 +16,65 @@
 	<string>1</string>
 	<key>LSUIElement</key>
 	<true/>
+
+	<!-- Opening a folder with the app, so it appears in Finder's "Open With" and can
+	     be set as the external terminal in editors that take an application path. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Folder</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.folder</string>
+				<string>public.directory</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- notchshell:// — for tools that cannot launch an application directly. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.notchshell.url</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>notchshell</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Finder's right-click Services menu. macOS has no system-wide default
+	     terminal, so this is one of the few ways to be reachable from Finder. -->
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>New Notchshell Tab Here</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>openTabAtFolder</string>
+			<key>NSPortName</key>
+			<string>Notchshell</string>
+			<key>NSRequiredContext</key>
+			<dict>
+				<key>NSTextContent</key>
+				<string>FilePath</string>
+			</dict>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.folder</string>
+			</array>
+		</dict>
+	</array>
+
 	<key>SUFeedURL</key>
 	<string>https://github.com/hakanuzum/notchshell/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>

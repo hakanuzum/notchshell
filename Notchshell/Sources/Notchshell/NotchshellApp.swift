@@ -75,6 +75,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        // Finder needs a provider object before the Services menu item works.
+        NSApp.servicesProvider = self
+        NSUpdateDynamicServices()
+
         setupStatusItem()
         setupHotkey()
         let cs = ControlServer(windowController: windowController)
@@ -91,6 +95,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Height the menu-bar mark is drawn at, in points. The bar itself is 22pt; 16
     /// leaves the optical margin system icons have.
     private static let statusIconHeight: CGFloat = 16
+
+    // MARK: - Opening from elsewhere
+
+    /// Finder's Services menu. Registered in Info.plist as `openTabAtFolder`.
+    @objc func openTabAtFolder(_ pasteboard: NSPasteboard,
+                               userData: String?,
+                               error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        guard let paths = pasteboard.propertyList(forType: .fileURL) as? [String]
+                ?? (pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL])?.map(\.path),
+              let first = paths.first else {
+            error.pointee = "No folder was provided." as NSString
+            return
+        }
+        open(OpenRequest.forPath(first))
+    }
+
+    /// `open notchshell://…`
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            guard let request = OpenRequest.forURL(url) else { continue }
+            open(request)
+        }
+    }
+
+    /// `open -a Notchshell <path>`, and Finder's "Open With".
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        for path in filenames {
+            open(OpenRequest.forPath(path))
+        }
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    /// Drop the panel, and start a tab in the requested directory.
+    ///
+    /// A quake terminal has no windows to open, so "open here" means showing the
+    /// panel — not creating one.
+    private func open(_ request: OpenRequest) {
+        if let directory = request.directory {
+            windowController.tabManager.addTab(in: directory)
+        }
+        windowController.show()
+    }
 
     private func setupStatusItem() {
         // The mark is wider than it is tall, so a square item would clip it.
