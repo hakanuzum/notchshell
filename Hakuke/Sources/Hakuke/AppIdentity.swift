@@ -12,11 +12,14 @@ import Foundation
 /// Anything here that is also declared in `Info.plist` must be kept in step with it;
 /// `AppIdentityTests` pins them together.
 enum AppIdentity {
-    /// Lowercase, no spaces. The CLI command, the config directory and the socket name.
+    /// Lowercase, no spaces. Everything a machine reads: the CLI command, the config
+    /// directory, the socket, the bundle identifier, the repository.
     static let slug = "notchshell"
 
-    /// Shown to people: menu titles, alerts, window titles.
-    static let displayName = "notchshell"
+    /// Everything a person reads: the app in Finder, menu titles, alerts, About.
+    /// Capitalised because that is the macOS convention for an app's name — the two
+    /// forms are deliberately different, so do not derive one from the other.
+    static let displayName = "Notchshell"
 
     /// Must equal `CFBundleIdentifier` in Info.plist.
     static let bundleID = "com.notchshell.app"

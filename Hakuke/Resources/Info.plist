@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleExecutable</key>
-	<string>notchshell</string>
+	<string>Notchshell</string>
 	<key>CFBundleIconFile</key>
-	<string>notchshell</string>
+	<string>Notchshell</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.notchshell.app</string>
 	<key>CFBundleName</key>
-	<string>notchshell</string>
+	<string>Notchshell</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.3.1</string>
 	<key>CFBundleVersion</key>

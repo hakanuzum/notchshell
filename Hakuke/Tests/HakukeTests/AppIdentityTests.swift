@@ -29,10 +29,27 @@ struct AppIdentityTests {
         #expect(plist["CFBundleIdentifier"] as? String == AppIdentity.bundleID)
     }
 
-    @Test func bundleName_matchesSlug() throws {
+    /// What Finder and the menus show is the capitalised display name; the lowercase
+    /// slug belongs to paths and the command line. Mixing them up is the easy mistake
+    /// here, so assert both directions.
+    @Test func bundleName_matchesDisplayName() throws {
         let plist = try Self.infoPlist()
-        #expect(plist["CFBundleName"] as? String == AppIdentity.slug)
-        #expect(plist["CFBundleExecutable"] as? String == AppIdentity.slug)
+        #expect(plist["CFBundleName"] as? String == AppIdentity.displayName)
+        #expect(plist["CFBundleExecutable"] as? String == AppIdentity.displayName)
+    }
+
+    @Test func displayNameAndSlug_differOnlyInCase() {
+        #expect(AppIdentity.displayName.lowercased() == AppIdentity.slug)
+        #expect(AppIdentity.displayName != AppIdentity.slug, "the display name should be capitalised")
+        #expect(AppIdentity.displayName.first?.isUppercase == true)
+    }
+
+    /// Machine-facing identifiers stay lowercase whatever the display name does.
+    @Test func machineFacingNames_stayLowercase() {
+        #expect(AppIdentity.bundleID == AppIdentity.bundleID.lowercased())
+        #expect(AppIdentity.controlSocketPath == AppIdentity.controlSocketPath.lowercased())
+        #expect(AppIdentity.configDirectory.hasSuffix("/\(AppIdentity.slug)"))
+        #expect(AppIdentity.Links.repository.hasSuffix("/\(AppIdentity.slug)"))
     }
 
     /// Sparkle checks for updates at this URL. If it drifts from the repository the

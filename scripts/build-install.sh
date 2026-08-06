@@ -1,21 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build notchshell, sign it, and optionally install to /Applications.
-# Usage: ./scripts/build-install.sh [--install]
+# Build notchshell, sign it, and install to /Applications.
+#
+# Usage: ./scripts/build-install.sh [--universal] [--dev]
+#
+#   --universal  build arm64 + x86_64 instead of arm64 only
+#   --dev        install alongside an existing install as notchshell_dev.app,
+#                for when you need to run a build without replacing the one you
+#                depend on day to day
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-APP_BUNDLE="$PROJECT_ROOT/build/notchshell.app"
+APP_BUNDLE="$PROJECT_ROOT/build/Notchshell.app"
 ENTITLEMENTS="$PROJECT_ROOT/Hakuke/Resources/notchshell.entitlements"
-BINARY="$APP_BUNDLE/Contents/MacOS/notchshell"
+BINARY="$APP_BUNDLE/Contents/MacOS/Notchshell"
 SIGNING_IDENTITY="Developer ID Application: <your identity>"
 
 cd "$PROJECT_ROOT"
 source "$SCRIPT_DIR/_toolchain.sh"
 
-ARCH="${1:---arch arm64}"
-if [ "$ARCH" = "--universal" ]; then
+UNIVERSAL=0
+SIDE_BY_SIDE=0
+for arg in "$@"; do
+    case "$arg" in
+        --universal) UNIVERSAL=1 ;;
+        --dev)       SIDE_BY_SIDE=1 ;;
+        *) echo "unknown argument: $arg" >&2; exit 2 ;;
+    esac
+done
+
+if [ "$UNIVERSAL" = 1 ]; then
     echo "==> Building universal release (arm64 + x86_64)..."
     swift build --build-system xcode -c release --arch arm64 --arch x86_64
 else
@@ -38,7 +53,7 @@ cp "$PROJECT_ROOT/Hakuke/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 echo "==> Copying icon..."
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 mkdir -p "$RESOURCES_DIR"
-cp "$PROJECT_ROOT/Hakuke/Resources/notchshell.icns" "$RESOURCES_DIR/" 2>/dev/null || true
+cp "$PROJECT_ROOT/Hakuke/Resources/Notchshell.icns" "$RESOURCES_DIR/" 2>/dev/null || true
 
 echo "==> Copying bundled theme catalog..."
 # Ghostty looks for <resources-dir>/themes, so the catalog lands under
@@ -120,16 +135,26 @@ codesign --force --sign "$SIGN_ID" \
 codesign --verify --deep --strict "$APP_BUNDLE"
 echo "==> Signed and verified: $APP_BUNDLE"
 
-# Install under a _dev suffix so a dev build never overwrites a released install.
-INSTALL_NAME="notchshell_dev"
+INSTALL_NAME="Notchshell"
+if [ "$SIDE_BY_SIDE" = 1 ]; then
+    INSTALL_NAME="Notchshell_dev"
+fi
+
 echo "==> Installing to /Applications/${INSTALL_NAME}.app..."
 killall "$INSTALL_NAME" 2>/dev/null || true
 sleep 0.3
 rm -rf "/Applications/${INSTALL_NAME}.app"
 cp -R "$APP_BUNDLE" "/Applications/${INSTALL_NAME}.app"
-mv "/Applications/${INSTALL_NAME}.app/Contents/MacOS/notchshell" "/Applications/${INSTALL_NAME}.app/Contents/MacOS/${INSTALL_NAME}"
-/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${INSTALL_NAME}" "/Applications/${INSTALL_NAME}.app/Contents/Info.plist" 2>/dev/null \
-    || /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string ${INSTALL_NAME}" "/Applications/${INSTALL_NAME}.app/Contents/Info.plist"
+
+if [ "$SIDE_BY_SIDE" = 1 ]; then
+    # Give the side-by-side copy its own executable name so the two show up
+    # distinctly in Activity Monitor and killall targets the right one.
+    mv "/Applications/${INSTALL_NAME}.app/Contents/MacOS/Notchshell" \
+       "/Applications/${INSTALL_NAME}.app/Contents/MacOS/${INSTALL_NAME}"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${INSTALL_NAME}" \
+        "/Applications/${INSTALL_NAME}.app/Contents/Info.plist"
+fi
+
 echo "==> Installed: /Applications/${INSTALL_NAME}.app"
 
 echo "Done."
