@@ -29,7 +29,7 @@ enum GhosttyThemeCatalog {
         if let env = ProcessInfo.processInfo.environment["GHOSTTY_RESOURCES_DIR"] {
             roots.append(env)
         }
-        roots.append(NSString(string: "~/.config/ghostty").expandingTildeInPath)
+        roots.append("\(AppIdentity.configHome)/ghostty")
         if let bundled = bundledResourcesRoot {
             roots.append(bundled)
         }
@@ -69,74 +69,22 @@ enum GhosttyThemeCatalog {
     }
 
     static func currentThemeName() -> String? {
-        let path = GhosttyApp.shared.configPath
-        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
-        for line in text.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("#") { continue }
-            guard trimmed.lowercased().hasPrefix("theme") else { continue }
-            guard let eq = trimmed.firstIndex(of: "=") else { continue }
-            var value = trimmed[trimmed.index(after: eq)...]
-                .trimmingCharacters(in: .whitespaces)
-            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
-                value = String(value.dropFirst().dropLast())
-            }
-            return String(value)
-        }
-        return nil
+        ManagedConfig.currentTheme()
     }
 
-    /// Write `theme = "Name"` to Ghostty config and ensure theme file is available.
+    /// Select a theme by writing it to the config layer this app owns.
+    ///
+    /// This used to rewrite the `theme =` line inside `~/.config/ghostty/config` and
+    /// copy the theme file into `~/.config/ghostty/themes`, i.e. it edited two things
+    /// belonging to the user. Now it writes one file we own, and the theme is read
+    /// from wherever `url(forTheme:)` found it — no copying.
     @discardableResult
     static func applyTheme(named name: String) -> Bool {
-        guard let source = url(forTheme: name) else {
+        guard url(forTheme: name) != nil else {
             os_log(.error, log: themeLog, "Theme not found: %{public}s", name)
             return false
         }
-
-        let fm = FileManager.default
-        let userThemes = URL(fileURLWithPath: NSString(string: "~/.config/ghostty/themes").expandingTildeInPath)
-        let configPath = GhosttyApp.shared.configPath
-        let userConfig = URL(fileURLWithPath: configPath)
-
-        try? fm.createDirectory(at: userThemes, withIntermediateDirectories: true)
-        try? fm.createDirectory(at: userConfig.deletingLastPathComponent(), withIntermediateDirectories: true)
-
-        let dest = userThemes.appendingPathComponent(name)
-        if source.standardizedFileURL != dest.standardizedFileURL {
-            try? fm.removeItem(at: dest)
-            try? fm.copyItem(at: source, to: dest)
-        }
-
-        let escaped = name
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let themeLine = "theme = \"\(escaped)\""
-
-        var text = (try? String(contentsOf: userConfig, encoding: .utf8)) ?? "# Ghostty config\n"
-        var lines = text.components(separatedBy: .newlines)
-        var replaced = false
-        for i in lines.indices {
-            let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("#") { continue }
-            if trimmed.lowercased().hasPrefix("theme=") || trimmed.lowercased().hasPrefix("theme =") {
-                lines[i] = themeLine
-                replaced = true
-                break
-            }
-        }
-        if !replaced {
-            if !text.isEmpty && !text.hasSuffix("\n") { lines.append("") }
-            lines.append(themeLine)
-            lines.append("")
-        }
-        do {
-            try lines.joined(separator: "\n").write(to: userConfig, atomically: true, encoding: .utf8)
-        } catch {
-            os_log(.error, log: themeLog, "Failed writing config: %{public}s", error.localizedDescription)
-            return false
-        }
-
+        guard ManagedConfig.setTheme(name) else { return false }
         UserDefaults.standard.set(name, forKey: "selectedGhosttyTheme")
         os_log(.info, log: themeLog, "Set theme=%{public}s", name)
         return true

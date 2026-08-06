@@ -27,11 +27,21 @@ enum AppIdentity {
     /// Unix socket for the local JSON control API.
     static let controlSocketPath = "/tmp/\(slug).sock"
 
-    /// Directory this app owns for its own configuration layer. Distinct from
-    /// `~/.config/ghostty`, which belongs to the user and is never written to.
-    static var configDirectory: String {
-        NSString(string: "~/.config/\(slug)").expandingTildeInPath
+    /// Base for per-user configuration, honouring `XDG_CONFIG_HOME` the way Ghostty
+    /// itself does. Reading it from the environment rather than expanding `~` also
+    /// makes the config paths redirectable, which is the only way tests can exercise
+    /// them without writing into the developer's real dotfiles — `NSHomeDirectory()`
+    /// resolves through `getpwuid` and ignores a reassigned `HOME`.
+    static var configHome: String {
+        if let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"], !xdg.isEmpty {
+            return xdg
+        }
+        return NSString(string: "~/.config").expandingTildeInPath
     }
+
+    /// Directory this app owns for its own configuration layer. Distinct from
+    /// `<configHome>/ghostty`, which belongs to the user and is never written to.
+    static var configDirectory: String { "\(configHome)/\(slug)" }
 
     /// Environment variable that opts tests into real Ghostty initialization.
     static let testGhosttyEnvVar = "NOTCHSHELL_TEST_GHOSTTY"

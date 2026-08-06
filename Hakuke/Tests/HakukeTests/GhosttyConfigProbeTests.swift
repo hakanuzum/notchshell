@@ -38,8 +38,8 @@ struct GhosttyConfigProbeTests {
     }
 
     @Test func probeConfigGet() throws {
-        guard ProcessInfo.processInfo.environment["MACUAKE_TEST_GHOSTTY"] != nil else {
-            print("PROBE: skipped — set MACUAKE_TEST_GHOSTTY=1 to run")
+        guard ProcessInfo.processInfo.environment[AppIdentity.testGhosttyEnvVar] != nil else {
+            print("PROBE: skipped — set \(AppIdentity.testGhosttyEnvVar)=1 to run")
             return
         }
 
@@ -95,5 +95,82 @@ struct GhosttyConfigProbeTests {
                 print("PROBE unset \(key.padding(toLength: 21, withPad: " ", startingAt: 0))-> DECLINED")
             }
         }
+    }
+
+    /// The layered-config design rests on two claims about `config-file` that the
+    /// docs assert but we have not seen for ourselves: an included file overrides
+    /// keys set in the including file, and a `?` prefix makes a missing file
+    /// non-fatal. If either is false, layering our theme over the user's untouched
+    /// Ghostty config does not work and the design has to change.
+    @Test func probeConfigFileLayering() throws {
+        guard ProcessInfo.processInfo.environment[AppIdentity.testGhosttyEnvVar] != nil else {
+            print("PROBE: skipped — set \(AppIdentity.testGhosttyEnvVar)=1 to run")
+            return
+        }
+        _ = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
+
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("hakuke-layer-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let base = dir.appendingPathComponent("base.conf")     // stands in for the user's config
+        let layer = dir.appendingPathComponent("layer.conf")   // stands in for our theme layer
+        let root = dir.appendingPathComponent("root.conf")     // what we would load
+        let missing = dir.appendingPathComponent("absent.conf").path
+
+        try "background = #111111\nforeground = #aaaaaa\n".write(to: base, atomically: true, encoding: .utf8)
+        try "background = #222222\n".write(to: layer, atomically: true, encoding: .utf8)
+        try """
+        config-file = ?\(missing)
+        config-file = \(base.path)
+        config-file = \(layer.path)
+        """.write(to: root, atomically: true, encoding: .utf8)
+
+        // load_file reads the file's own keys but does not follow its `config-file`
+        // directives; ghostty_config_load_recursive_files is what expands those.
+        // Measured: without the recursive pass every include is silently ignored and
+        // the config resolves to Ghostty's defaults, with zero diagnostics.
+        let config = ghostty_config_new()!
+        defer { ghostty_config_free(config) }
+        root.path.withCString { ghostty_config_load_file(config, $0) }
+        ghostty_config_load_recursive_files(config)
+        ghostty_config_finalize(config)
+
+        let diagnostics = ghostty_config_diagnostics_count(config)
+        print("PROBE layering diagnostics -> \(diagnostics) (0 means `?` on a missing file is fine)")
+        for i in 0..<diagnostics {
+            if let m = ghostty_config_get_diagnostic(config, i).message {
+                print("PROBE   diagnostic: \(String(cString: m))")
+            }
+        }
+
+        let bg = get(config, "background", as: ghostty_config_color_s.self).map(hex) ?? "DECLINED"
+        let fg = get(config, "foreground", as: ghostty_config_color_s.self).map(hex) ?? "DECLINED"
+        print("PROBE background -> \(bg)  (#222222 = later include wins, #111111 = earlier wins)")
+        print("PROBE foreground -> \(fg)  (#aaaaaa = inherited from base)")
+
+        // Same question for the loader the app actually used before this change.
+        // XDG_CONFIG_HOME redirects Ghostty's default config lookup at us.
+        let xdg = dir.appendingPathComponent("xdg")
+        let ghosttyDir = xdg.appendingPathComponent("ghostty")
+        try FileManager.default.createDirectory(at: ghosttyDir, withIntermediateDirectories: true)
+        try "config-file = \(layer.path)\nforeground = #aaaaaa\n"
+            .write(to: ghosttyDir.appendingPathComponent("config"), atomically: true, encoding: .utf8)
+
+        let previousXDG = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
+        setenv("XDG_CONFIG_HOME", xdg.path, 1)
+        defer {
+            if let previousXDG { setenv("XDG_CONFIG_HOME", previousXDG, 1) } else { unsetenv("XDG_CONFIG_HOME") }
+        }
+
+        let viaDefaults = ghostty_config_new()!
+        defer { ghostty_config_free(viaDefaults) }
+        ghostty_config_load_default_files(viaDefaults)
+        ghostty_config_finalize(viaDefaults)
+        let defaultsBG = get(viaDefaults, "background", as: ghostty_config_color_s.self).map(hex) ?? "DECLINED"
+        let defaultsFG = get(viaDefaults, "foreground", as: ghostty_config_color_s.self).map(hex) ?? "DECLINED"
+        print("PROBE load_default_files alone: foreground -> \(defaultsFG) (#aaaaaa = file was read)")
+        print("PROBE load_default_files alone: background -> \(defaultsBG) (#222222 = include followed)")
     }
 }

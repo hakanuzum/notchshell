@@ -66,7 +66,7 @@ final class GhosttyApp: @unchecked Sendable {
             os_log(.error, log: log, "ghostty_config_new returned nil")
             return
         }
-        ghostty_config_load_default_files(primaryConfig)
+        ManagedConfig.load(into: primaryConfig)
         ghostty_config_finalize(primaryConfig)
 
         let diagnosticCount = ghostty_config_diagnostics_count(primaryConfig)
@@ -268,7 +268,7 @@ final class GhosttyApp: @unchecked Sendable {
             os_log(.error, log: log, "reloadConfig: ghostty_config_new failed")
             return
         }
-        ghostty_config_load_default_files(newConfig)
+        ManagedConfig.load(into: newConfig)
         ghostty_config_finalize(newConfig)
 
         let diagCount = ghostty_config_diagnostics_count(newConfig)
@@ -300,17 +300,9 @@ final class GhosttyApp: @unchecked Sendable {
 
     // MARK: - Config management
 
-    /// Path to the Ghostty config file.
-    var configPath: String {
-        guard app != nil else {
-            return NSString(string: "~/.config/ghostty/config").expandingTildeInPath
-        }
-        let s = ghostty_config_open_path()
-        guard let ptr = s.ptr, s.len > 0 else {
-            return NSString(string: "~/.config/ghostty/config").expandingTildeInPath
-        }
-        return String(cString: ptr)
-    }
+    /// Config file this app loads. Not the user's Ghostty config — that one is
+    /// included from here and is never written to. See `ManagedConfig`.
+    var configPath: String { ManagedConfig.rootPath }
 
     /// Apply a Ghostty theme by name (config only) and reload all surfaces.
     @discardableResult
@@ -336,19 +328,12 @@ final class GhosttyApp: @unchecked Sendable {
         return true
     }
 
-    /// Open the Ghostty config file in the default editor.
+    /// Open our config file in the default editor. It carries the include lines that
+    /// pull in the user's own Ghostty config, so it is the right entry point for
+    /// "where do I configure this".
     func openConfig() {
-        let path = configPath
-        // Ensure file exists
-        let fm = FileManager.default
-        let dir = (path as NSString).deletingLastPathComponent
-        if !fm.fileExists(atPath: dir) {
-            try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        }
-        if !fm.fileExists(atPath: path) {
-            try? "# Ghostty config — see https://ghostty.org/docs/config\n".write(toFile: path, atomically: true, encoding: .utf8)
-        }
-        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        ManagedConfig.ensureExists()
+        NSWorkspace.shared.open(URL(fileURLWithPath: ManagedConfig.rootPath))
     }
 
     // MARK: - Cleanup

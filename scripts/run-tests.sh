@@ -16,6 +16,7 @@ SUITES=(
     ScreenInfoTests
     TerminalThemeTests
     AppIdentityTests
+    ManagedConfigTests
     GhosttyThemeCatalogTests
     GhosttyConfigProbeTests
     ScreenDetectorTests
