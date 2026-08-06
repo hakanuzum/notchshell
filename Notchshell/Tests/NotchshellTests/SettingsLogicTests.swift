@@ -269,9 +269,15 @@ struct GhosttyConfigTests {
         #expect(!path.isEmpty)
     }
 
-    @Test func configPath_containsGhostty() {
+    /// `configPath` deliberately points at the layer this app owns, not at the user's
+    /// Ghostty config — that one is included from it and never written to. This test
+    /// asserted the opposite until the config layer was introduced, and it was not
+    /// running at the time, so nothing caught the change.
+    @Test func configPath_isOurOwnLayerNotTheUsers() {
         let path = GhosttyApp.shared.configPath
-        #expect(path.contains("ghostty"))
+        #expect(path == ManagedConfig.rootPath)
+        #expect(path.hasSuffix("/\(AppIdentity.slug)/config"))
+        #expect(path != ManagedConfig.userGhosttyConfigPath)
     }
 
     @Test func reloadConfig_noCrash() {

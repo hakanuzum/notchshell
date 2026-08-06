@@ -414,40 +414,50 @@ struct ControlServerHandlerTests {
         #expect(parsed?["ok"] as? Bool == true)
     }
 
-    // MARK: - set-appearance
+    // MARK: - rename-tab
 
-    @Test func setAppearance_missingTitle_returnsError() {
+    @Test func renameTab_missingTitle_returnsError() {
         let (server, _) = makeServer()
-        let result = server.handleRequest(json(["action": "set-appearance"]))
+        let result = server.handleRequest(json(["action": "rename-tab"]))
         let parsed = parse(result)
         #expect(parsed?["ok"] as? Bool == false)
         #expect((parsed?["error"] as? String)?.contains("title") == true)
     }
 
-    @Test func setAppearance_withTitle_renamesTab() {
+    @Test func renameTab_withTitle_renamesTab() {
         let (server, wc) = makeServer()
         let tabID = wc.tabManager.tabs[0].id
-        let result = server.handleRequest(json(["action": "set-appearance", "title": "MyTab", "tab_id": tabID]))
+        let result = server.handleRequest(json(["action": "rename-tab", "title": "MyTab", "tab_id": tabID]))
         let parsed = parse(result)
         #expect(parsed?["ok"] as? Bool == true)
         #expect(wc.tabManager.tabs[0].customTitle == "MyTab")
     }
 
-    @Test func setAppearance_emptyTitle_clearsCustomName() {
+    @Test func renameTab_emptyTitle_clearsCustomName() {
         let (server, wc) = makeServer()
         let tabID = wc.tabManager.tabs[0].id
         wc.tabManager.renameTab(id: wc.tabManager.tabs[0].id, name: "Custom")
         #expect(wc.tabManager.tabs[0].customTitle == "Custom")
 
-        let result = server.handleRequest(json(["action": "set-appearance", "title": "", "tab_id": tabID]))
+        let result = server.handleRequest(json(["action": "rename-tab", "title": "", "tab_id": tabID]))
         let parsed = parse(result)
         #expect(parsed?["ok"] as? Bool == true)
         #expect(wc.tabManager.tabs[0].customTitle == nil)
     }
 
-    @Test func setAppearance_invalidSession_returnsError() {
+    /// The command used to be called "set-appearance", which described nothing it
+    /// did. Anything already calling it must keep working.
+    @Test func renameTab_oldSetAppearanceName_stillWorks() {
+        let (server, wc) = makeServer()
+        let tabID = wc.tabManager.tabs.first!.id
+        let result = server.handleRequest(json(["action": "set-appearance", "title": "Legacy", "tab_id": tabID]))
+        #expect(result.contains("\"ok\":true"))
+        #expect(wc.tabManager.tabs.first!.displayTitle == "Legacy")
+    }
+
+    @Test func renameTab_invalidSession_returnsError() {
         let (server, _) = makeServer()
-        let result = server.handleRequest(json(["action": "set-appearance", "title": "Test", "session_id": "00000000-0000-0000-0000-000000000000"]))
+        let result = server.handleRequest(json(["action": "rename-tab", "title": "Test", "session_id": "00000000-0000-0000-0000-000000000000"]))
         let parsed = parse(result)
         #expect(parsed?["ok"] as? Bool == false)
     }

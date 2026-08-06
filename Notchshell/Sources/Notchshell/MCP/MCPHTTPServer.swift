@@ -423,7 +423,7 @@ final class MCPHTTPServer {
                     "session_id": .object(["type": .string("string"), "description": .string("Target session (default: focused)")])
                 ])
              ])),
-        Tool(name: "set_appearance", description: "Set tab title (by tab_id, session_id, or active tab)",
+        Tool(name: "rename_tab", description: "Rename a tab (by tab_id, session_id, or active tab)",
              inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -480,7 +480,7 @@ final class MCPHTTPServer {
             "new_tab": "new-tab", "focus": "focus", "close_session": "close-session",
             "execute": "execute", "read": "read", "paste": "paste",
             "control_char": "control-char", "clear": "clear", "split": "split",
-            "resize_split": "resize-split", "set_appearance": "set-appearance",
+            "resize_split": "resize-split", "rename_tab": "rename-tab", "set_appearance": "rename-tab",
         ]
 
         guard let action = actionMap[params.name] else {

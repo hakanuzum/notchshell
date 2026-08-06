@@ -199,7 +199,10 @@ final class ControlServer {
         case "clear":         return handleClear(json, wc)
         case "split":         return handleSplit(json, wc)
         case "resize-split":  return handleResizeSplit(json, wc)
-        case "set-appearance": return handleSetAppearance(json, wc)
+        // "set-appearance" never set an appearance — it renamed a tab. Kept as an
+        // alias so anything already calling it keeps working.
+        case "rename-tab", "set-appearance":
+                              return handleRenameTab(json, wc)
         default:              return jsonError("unknown action: \(action)")
         }
     }
@@ -508,7 +511,7 @@ final class ControlServer {
     }
 
     @MainActor
-    private func handleSetAppearance(_ json: [String: Any], _ wc: WindowController) -> String {
+    private func handleRenameTab(_ json: [String: Any], _ wc: WindowController) -> String {
         guard let title = json["title"] as? String else {
             return jsonError("provide title")
         }
