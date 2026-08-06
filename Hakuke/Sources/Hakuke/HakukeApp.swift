@@ -88,14 +88,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = SparkleUpdater.shared // Start automatic update checks
     }
 
+    /// Height the menu-bar mark is drawn at, in points. The bar itself is 22pt; 16
+    /// leaves the optical margin system icons have.
+    private static let statusIconHeight: CGFloat = 16
+
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        // The mark is wider than it is tall, so a square item would clip it.
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(
-                systemSymbolName: "terminal",
-                accessibilityDescription: AppIdentity.displayName
-            )
+            button.image = Self.statusIcon()
+            button.image?.accessibilityDescription = AppIdentity.displayName
         }
 
         let menu = NSMenu()
@@ -133,6 +136,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quitItem)
 
         statusItem.menu = menu
+    }
+
+    /// The menu-bar mark, as a template image so macOS tints it for light and dark
+    /// bars, the accent colour and the pressed state.
+    ///
+    /// The bundled PNG is rendered larger than it is drawn; setting `size` here makes
+    /// AppKit downsample it, which stays crisp on 1x and 2x without a @2x variant.
+    /// Falls back to the system terminal glyph if the resource is ever missing, so a
+    /// packaging mistake shows up as the wrong icon rather than no menu bar item.
+    private static func statusIcon() -> NSImage? {
+        guard let url = Bundle.main.url(forResource: "NotchshellMenuBar", withExtension: "png"),
+              let image = NSImage(contentsOf: url), image.size.height > 0 else {
+            return NSImage(systemSymbolName: "terminal", accessibilityDescription: AppIdentity.displayName)
+        }
+        let aspect = image.size.width / image.size.height
+        image.size = NSSize(width: statusIconHeight * aspect, height: statusIconHeight)
+        image.isTemplate = true
+        return image
     }
 
     private func setupHotkey() {

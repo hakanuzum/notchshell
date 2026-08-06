@@ -1,19 +1,19 @@
 // Build the macOS app icon from the source artwork.
 //
-// Usage: swift scripts/make-icon.swift <source.png> <output.icns>
+// Usage: swift scripts/make-icon.swift <source.png> <output.icns> [--as-is]
 //
-// The source is 1024x1024, which is exactly the largest size macOS asks for, so
-// nothing is ever scaled up and no detail is invented. What this does do is fit the
-// artwork to the medium:
+// A 1024x1024 source is exactly the largest size macOS asks for, so nothing is ever
+// scaled up and no detail is invented. Every size is resampled from the master in a
+// single step; chaining downscales is what smears fine detail.
 //
-//   - crops the dead margin (the mark fills ~61% x ~46% of its canvas and sits 113px
-//     above centre, so used as-is it would read small and top-heavy),
-//   - centres it inside the standard macOS icon body — 824x824 within a 1024 canvas,
-//     corner radius 185.4 — so it sits on the same grid as every other Dock icon,
-//   - keeps everything outside that shape transparent, because a full-bleed square
-//     is the one thing a macOS icon must not be,
-//   - renders each size in a single step from the 1024 master rather than chaining
-//     downscales, which is what smears fine detail.
+// With --as-is the artwork is emitted unchanged: use it when the source is already
+// composed as an icon and you want it exactly as drawn.
+//
+// Without it, the artwork is fitted to Apple's icon grid — the content box is
+// measured and the surrounding backdrop cropped away, the mark is centred inside an
+// 824x824 body with corner radius 185.4, the backdrop is matted to transparent so a
+// non-square mark does not carry bright wedges in its corners, and everything outside
+// the squircle stays clear.
 
 import AppKit
 
@@ -21,11 +21,18 @@ import AppKit
 
 let arguments = CommandLine.arguments
 guard arguments.count >= 3 else {
-    FileHandle.standardError.write("usage: make-icon.swift <source.png> <output.icns>\n".data(using: .utf8)!)
+    FileHandle.standardError.write("""
+    usage: make-icon.swift <source.png> <output.icns> [--as-is]
+
+      --as-is  emit the artwork unchanged at every size: no crop, no matte, no
+               squircle. Use when the source is already composed as an icon.
+
+    """.data(using: .utf8)!)
     exit(2)
 }
 let sourcePath = arguments[1]
 let outputPath = arguments[2]
+let asIs = arguments.dropFirst(3).contains("--as-is")
 
 // MARK: - Geometry (Apple's macOS icon grid)
 
@@ -53,61 +60,122 @@ guard let image = NSImage(contentsOfFile: sourcePath),
 
 // MARK: - Measure the content
 
-/// Bounding box of everything meaningfully brighter than the black field, in CoreGraphics
-/// coordinates (origin bottom-left).
-func contentBounds(of cg: CGImage, threshold: Double = 28) -> CGRect {
+/// All the source pixels, once, so the passes below can share them.
+func rgba(of cg: CGImage) -> [UInt8] {
     let w = cg.width, h = cg.height
     var pixels = [UInt8](repeating: 0, count: w * h * 4)
-    guard let ctx = CGContext(data: &pixels, width: w, height: h, bitsPerComponent: 8,
-                             bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
-                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-        return CGRect(x: 0, y: 0, width: w, height: h)
-    }
-    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+    CGContext(data: &pixels, width: w, height: h, bitsPerComponent: 8,
+              bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?
+        .draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+    return pixels
+}
+let pixels = rgba(of: source)
+let sourceWidth = source.width, sourceHeight = source.height
 
-    var minX = w, minY = h, maxX = -1, maxY = -1
-    for y in 0..<h {
-        for x in 0..<w {
-            let i = (y * w + x) * 4
-            let luma = 0.2126 * Double(pixels[i]) + 0.7152 * Double(pixels[i+1]) + 0.0722 * Double(pixels[i+2])
-            if luma > threshold {
+/// The artwork's own backdrop, taken from a corner. Defining "content" as anything
+/// that differs from it handles a mark on white as well as a mark on black — the
+/// first pass here only knew about bright-on-black and would have treated an entire
+/// white canvas as content.
+func backdrop() -> (r: Double, g: Double, b: Double) {
+    (Double(pixels[0]), Double(pixels[1]), Double(pixels[2]))
+}
+let field = backdrop()
+
+/// Bounding box of everything that differs from the backdrop, in CoreGraphics
+/// coordinates (origin bottom-left).
+func contentBounds(threshold: Double = 40) -> CGRect {
+    var minX = sourceWidth, minY = sourceHeight, maxX = -1, maxY = -1
+    for y in 0..<sourceHeight {
+        for x in 0..<sourceWidth {
+            let i = (y * sourceWidth + x) * 4
+            let dr = Double(pixels[i]) - field.r
+            let dg = Double(pixels[i+1]) - field.g
+            let db = Double(pixels[i+2]) - field.b
+            if (dr * dr + dg * dg + db * db).squareRoot() > threshold {
                 if x < minX { minX = x }; if x > maxX { maxX = x }
                 if y < minY { minY = y }; if y > maxY { maxY = y }
             }
         }
     }
     guard maxX >= minX, maxY >= minY else {
-        return CGRect(x: 0, y: 0, width: w, height: h)
+        return CGRect(x: 0, y: 0, width: sourceWidth, height: sourceHeight)
     }
     // The pixel buffer is drawn bottom-up, so these are already CG coordinates.
     return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
 }
 
-var crop = contentBounds(of: source)
-crop = crop.insetBy(dx: -crop.width * glowPadding, dy: -crop.height * glowPadding)
-    .intersection(CGRect(x: 0, y: 0, width: source.width, height: source.height))
-
-guard let cropped = source.cropping(to: crop) else {
-    FileHandle.standardError.write("crop failed\n".data(using: .utf8)!)
-    exit(1)
+/// Content box padded for glow. Only needed when composing; --as-is skips the whole
+/// analysis, which is also the expensive part.
+func paddedContentBounds() -> CGRect {
+    contentBounds()
+        .insetBy(dx: -CGFloat(sourceWidth) * glowPadding, dy: -CGFloat(sourceHeight) * glowPadding)
+        .intersection(CGRect(x: 0, y: 0, width: sourceWidth, height: sourceHeight))
 }
 
-/// Background colour, sampled from a corner of the source so the squircle matches the
-/// artwork's own field instead of a guessed black.
-func cornerColour(of cg: CGImage) -> CGColor {
-    var pixel = [UInt8](repeating: 0, count: 4)
-    let ctx = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
-                        space: CGColorSpaceCreateDeviceRGB(),
-                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
-    return CGColor(red: CGFloat(pixel[0]) / 255, green: CGFloat(pixel[1]) / 255,
-                   blue: CGFloat(pixel[2]) / 255, alpha: 1)
+/// The crop, with the export backdrop turned transparent.
+///
+/// A mark is rarely square: cropping a circular badge to its bounding box leaves the
+/// backdrop in the corners, which would then sit inside the icon as four bright
+/// wedges. Alpha ramps in over a distance range rather than switching at a threshold,
+/// so a glow that fades into its own backdrop keeps a soft edge instead of a sawtooth.
+func mattedCrop(_ box: CGRect) -> CGImage? {
+    let x0 = Int(box.minX), y0 = Int(box.minY)
+    let w = Int(box.width), h = Int(box.height)
+    var out = [UInt8](repeating: 0, count: w * h * 4)
+    let near = 20.0, far = 60.0
+    for y in 0..<h {
+        for x in 0..<w {
+            let src = ((y0 + y) * sourceWidth + (x0 + x)) * 4
+            let dst = (y * w + x) * 4
+            let r = Double(pixels[src]), g = Double(pixels[src+1]), b = Double(pixels[src+2])
+            let distance = ((r - field.r) * (r - field.r)
+                          + (g - field.g) * (g - field.g)
+                          + (b - field.b) * (b - field.b)).squareRoot()
+            let t = min(1, max(0, (distance - near) / (far - near)))
+            let alpha = t * t * (3 - 2 * t)   // smoothstep
+            out[dst]   = UInt8(r * alpha)
+            out[dst+1] = UInt8(g * alpha)
+            out[dst+2] = UInt8(b * alpha)
+            out[dst+3] = UInt8(alpha * 255)
+        }
+    }
+    return CGContext(data: &out, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                     space: CGColorSpaceCreateDeviceRGB(),
+                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
 }
-let background = cornerColour(of: source)
 
+/// Colour to fill the squircle with: the one that dominates *inside* the mark, so the
+/// icon body reads as the artwork's own field rather than as a plate behind it.
+///
+/// Not the corner pixel — that is the backdrop the mark was exported on, which for a
+/// mark drawn on white would paint a white icon behind a black disc.
+func dominantColour(in box: CGRect) -> CGColor {
+    var histogram: [Int: Int] = [:]
+    let x0 = Int(box.minX), x1 = Int(box.maxX), y0 = Int(box.minY), y1 = Int(box.maxY)
+    for y in stride(from: y0, through: min(y1, sourceHeight - 1), by: 2) {
+        for x in stride(from: x0, through: min(x1, sourceWidth - 1), by: 2) {
+            let i = (y * sourceWidth + x) * 4
+            // Quantise to 5 bits per channel so near-identical shades group together.
+            let key = (Int(pixels[i]) >> 3) << 10 | (Int(pixels[i+1]) >> 3) << 5 | (Int(pixels[i+2]) >> 3)
+            histogram[key, default: 0] += 1
+        }
+    }
+    guard let (key, _) = histogram.max(by: { $0.value < $1.value }) else {
+        return CGColor(gray: 0, alpha: 1)
+    }
+    let r = CGFloat((key >> 10) & 0x1f) / 31
+    let g = CGFloat((key >> 5) & 0x1f) / 31
+    let b = CGFloat(key & 0x1f) / 31
+    return CGColor(red: r, green: g, blue: b, alpha: 1)
+}
 // MARK: - Compose the 1024 master
 
 func renderMaster() -> CGImage? {
+    let crop = paddedContentBounds()
+    guard let cropped = mattedCrop(crop) else { return nil }
+    let background = dominantColour(in: crop)
+
     guard let ctx = CGContext(data: nil, width: Int(canvas), height: Int(canvas),
                               bitsPerComponent: 8, bytesPerRow: 0,
                               space: CGColorSpaceCreateDeviceRGB(),
@@ -135,9 +203,15 @@ func renderMaster() -> CGImage? {
     return ctx.makeImage()
 }
 
-guard let master = renderMaster() else {
-    FileHandle.standardError.write("compose failed\n".data(using: .utf8)!)
-    exit(1)
+let master: CGImage
+if asIs {
+    master = source
+} else {
+    guard let composed = renderMaster() else {
+        FileHandle.standardError.write("compose failed\n".data(using: .utf8)!)
+        exit(1)
+    }
+    master = composed
 }
 
 // MARK: - Emit the iconset
@@ -202,7 +276,8 @@ guard iconutil.terminationStatus == 0 else {
 }
 try? FileManager.default.removeItem(at: iconset)
 
-print("source content : \(Int(crop.width))x\(Int(crop.height)) cropped from \(source.width)x\(source.height)")
-print("artwork fills  : \(Int(artworkFill * 100))% of the \(Int(bodySize))pt icon body")
+print(asIs ? "mode           : as-is (unmodified artwork at every size)"
+                 : "source content : \(Int(paddedContentBounds().width))x\(Int(paddedContentBounds().height)) cropped from \(sourceWidth)x\(sourceHeight)")
+if !asIs { print("artwork fills  : \(Int(artworkFill * 100))% of the \(Int(bodySize))pt icon body") }
 print("wrote          : \(outputURL.path)")
 print("master preview : \(masterURL.path)")

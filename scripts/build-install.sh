@@ -53,7 +53,10 @@ cp "$PROJECT_ROOT/Hakuke/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 echo "==> Copying icon..."
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 mkdir -p "$RESOURCES_DIR"
-cp "$PROJECT_ROOT/Hakuke/Resources/Notchshell.icns" "$RESOURCES_DIR/" 2>/dev/null || true
+cp "$PROJECT_ROOT/Hakuke/Resources/Notchshell.icns" "$RESOURCES_DIR/"
+# Menu-bar template image. This app has no Dock tile, so this is the icon people
+# actually see; regenerate it with scripts/make-menubar-icon.swift.
+cp "$PROJECT_ROOT/Hakuke/Resources/NotchshellMenuBar.png" "$RESOURCES_DIR/"
 
 echo "==> Copying bundled theme catalog..."
 # Ghostty looks for <resources-dir>/themes, so the catalog lands under
