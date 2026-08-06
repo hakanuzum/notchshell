@@ -114,7 +114,7 @@ rebuild_from_cache() {
     echo "    ${target_arch:-all} ($target_platform): $obj_count objects"
 }
 
-# Remove iOS slices — hakuke is macOS only, and iOS objects
+# Remove iOS slices — notchshell is macOS only, and iOS objects
 # would contaminate the macOS library during rebuild
 for ios_dir in "$XCFRAMEWORK_DIR"/ios-*/; do
     [ -d "$ios_dir" ] || continue

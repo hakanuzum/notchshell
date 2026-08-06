@@ -13,7 +13,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_BUNDLE="$PROJECT_ROOT/build/Notchshell.app"
-ENTITLEMENTS="$PROJECT_ROOT/Hakuke/Resources/notchshell.entitlements"
+ENTITLEMENTS="$PROJECT_ROOT/Notchshell/Resources/notchshell.entitlements"
 BINARY="$APP_BUNDLE/Contents/MacOS/Notchshell"
 SIGNING_IDENTITY="Developer ID Application: <your identity>"
 
@@ -42,21 +42,21 @@ echo "==> Copying binary..."
 # The bundle skeleton is reused across builds, so prune anything left in MacOS/ from
 # an earlier product name. codesign rejects a bundle whose MacOS/ holds an executable
 # other than CFBundleExecutable ("invalid Info.plist (plist or signature have been
-# modified)"), which is how the Hakuke -> notchshell rename first surfaced.
+# modified)"), which is how the first product rename surfaced.
 mkdir -p "$(dirname "$BINARY")"
 find "$(dirname "$BINARY")" -mindepth 1 -maxdepth 1 ! -name "$(basename "$BINARY")" -exec rm -rf {} +
-cp .build/apple/Products/Release/Hakuke "$BINARY"   # SPM target is still named Hakuke
+cp .build/apple/Products/Release/Notchshell "$BINARY"
 
 echo "==> Copying Info.plist..."
-cp "$PROJECT_ROOT/Hakuke/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+cp "$PROJECT_ROOT/Notchshell/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
 echo "==> Copying icon..."
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 mkdir -p "$RESOURCES_DIR"
-cp "$PROJECT_ROOT/Hakuke/Resources/Notchshell.icns" "$RESOURCES_DIR/"
+cp "$PROJECT_ROOT/Notchshell/Resources/Notchshell.icns" "$RESOURCES_DIR/"
 # Menu-bar template image. This app has no Dock tile, so this is the icon people
 # actually see; regenerate it with scripts/make-menubar-icon.swift.
-cp "$PROJECT_ROOT/Hakuke/Resources/NotchshellMenuBar.png" "$RESOURCES_DIR/"
+cp "$PROJECT_ROOT/Notchshell/Resources/NotchshellMenuBar.png" "$RESOURCES_DIR/"
 
 echo "==> Copying bundled theme catalog..."
 # Ghostty looks for <resources-dir>/themes, so the catalog lands under
@@ -68,6 +68,26 @@ mkdir -p "$GHOSTTY_RES_DIR/themes"
 cp -R "$PROJECT_ROOT/vendor/themes/themes/." "$GHOSTTY_RES_DIR/themes/"
 cp "$PROJECT_ROOT/vendor/themes/LICENSE" "$GHOSTTY_RES_DIR/THEMES-LICENSE"
 echo "    $(find "$GHOSTTY_RES_DIR/themes" -type f | wc -l | tr -d ' ') themes"
+
+echo "==> Compiling terminfo..."
+# libghostty announces TERM=xterm-ghostty, which no OS ships. Without this every
+# ncurses program in the terminal is broken; it only worked during development
+# because another Ghostty-based terminal had leaked TERMINFO into the environment.
+# The database is a sibling of the resources directory, which is where libghostty
+# looks for it. See vendor/terminfo/README.md.
+TERMINFO_DIR="$RESOURCES_DIR/terminfo"
+rm -rf "$TERMINFO_DIR"
+mkdir -p "$TERMINFO_DIR"
+# tic warns about the description field on older versions; the output is still correct.
+tic -x -o "$TERMINFO_DIR" "$PROJECT_ROOT/vendor/terminfo/ghostty.terminfo" 2>/dev/null || {
+    echo "ERROR: tic failed to compile vendor/terminfo/ghostty.terminfo" >&2
+    exit 1
+}
+TERMINFO="$TERMINFO_DIR" infocmp xterm-ghostty >/dev/null 2>&1 || {
+    echo "ERROR: compiled terminfo does not resolve xterm-ghostty" >&2
+    exit 1
+}
+echo "    xterm-ghostty"
 
 echo "==> Copying resource bundles..."
 for bundle in .build/apple/Products/Release/*.bundle; do

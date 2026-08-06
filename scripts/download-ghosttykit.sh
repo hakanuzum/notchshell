@@ -16,7 +16,7 @@ fi
 
 SHA=$(cd "$GHOSTTY_DIR" && git rev-parse HEAD)
 TAG="ghosttykit-$SHA"
-REPO="${GITHUB_REPOSITORY:-hakanuzum/hakuke}"
+REPO="${GITHUB_REPOSITORY:-hakanuzum/notchshell}"
 
 echo "Looking for pre-built GhosttyKit (SHA: ${SHA:0:12})..."
 

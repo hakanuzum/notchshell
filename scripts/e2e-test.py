@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-hakuke E2E tests via Socket API.
-Requires hakuke running with API enabled.
+notchshell E2E tests via Socket API.
+Requires notchshell running with API enabled.
 
 Usage:
-    # Start hakuke, enable API in Settings, then:
+    # Start notchshell, enable API in Settings, then:
     python3 scripts/e2e-test.py
 
 Can run headless in a VM — only needs the Unix socket.
@@ -15,7 +15,7 @@ import json
 import time
 import sys
 
-SOCKET_PATH = "/tmp/hakuke.sock"
+SOCKET_PATH = "/tmp/notchshell.sock"
 PASSED = 0
 FAILED = 0
 ERRORS = []
@@ -256,7 +256,7 @@ def test_error_handling():
 # ============================================================
 
 if __name__ == "__main__":
-    print(f"hakuke E2E tests — socket: {SOCKET_PATH}")
+    print(f"notchshell E2E tests — socket: {SOCKET_PATH}")
 
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -265,7 +265,7 @@ if __name__ == "__main__":
         s.close()
     except Exception as e:
         print(f"\033[31mCannot connect to {SOCKET_PATH}: {e}\033[0m")
-        print("Make sure hakuke is running with API enabled.")
+        print("Make sure notchshell is running with API enabled.")
         sys.exit(1)
 
     test_connection()

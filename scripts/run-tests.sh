@@ -56,7 +56,7 @@ SUITES=(
     PinnedWindowVisibilityTests
     TabManagerTerminalIntegrationTests
     WindowControllerTabManagerIntegrationTests
-    MaquakeE2ETests
+    NotchshellE2ETests
 )
 
 PASSED=0
@@ -79,9 +79,23 @@ for suite in "${SUITES[@]}"; do
         OUTPUT=$(swift test --skip-build --filter "$suite" 2>&1); EXIT_CODE=$?
     fi
 
+    # How many tests actually ran. A filter matching nothing still exits 0, so
+    # without this a stale or misspelled name in SUITES reads as a pass — which is
+    # how a failing E2E suite stayed hidden here behind a name that no longer
+    # existed. Both runners are counted: swift-testing reports "Test run with N
+    # tests", XCTest reports "Executed N tests", and a swift-testing-only suite
+    # always prints "Executed 0 tests" for the empty XCTest half.
+    RAN_TESTING=$(echo "$OUTPUT" | grep -oE 'Test run with [0-9]+ test' | grep -oE '[0-9]+' | head -1)
+    RAN_XCTEST=$(echo "$OUTPUT" | grep -oE 'Executed [0-9]+ test' | grep -oE '[0-9]+' | head -1)
+    RAN=$(( ${RAN_TESTING:-0} + ${RAN_XCTEST:-0} ))
+
     if echo "$OUTPUT" | grep -q 'disabled'; then
         echo "SKIP (disabled)"
         SKIPPED=$((SKIPPED + 1))
+    elif [ "$RAN" -eq 0 ] && [ $EXIT_CODE -eq 0 ]; then
+        echo "NO MATCH (suite name wrong?)"
+        FAILED=$((FAILED + 1))
+        FAILED_NAMES+=("$suite")
     elif [ $EXIT_CODE -eq 0 ] && echo "$OUTPUT" | grep -q "passed"; then
         TESTS=$(echo "$OUTPUT" | grep -c '✔ Test' || true)
         echo "OK ($TESTS tests)"

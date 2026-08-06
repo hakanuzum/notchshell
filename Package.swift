@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "Hakuke",
+    name: "Notchshell",
     platforms: [
         .macOS(.v14)
     ],
@@ -17,14 +17,14 @@ let package = Package(
             path: "vendor/ghostty/macos/GhosttyKit.xcframework"
         ),
         .executableTarget(
-            name: "Hakuke",
+            name: "Notchshell",
             dependencies: [
                 "KeyboardShortcuts",
                 "GhosttyKit",
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "MCP", package: "swift-sdk"),
             ],
-            path: "Hakuke/Sources/Hakuke",
+            path: "Notchshell/Sources/Notchshell",
             resources: [
                 .process("../../Resources"),
             ],
@@ -36,9 +36,9 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "HakukeTests",
-            dependencies: ["Hakuke"],
-            path: "Hakuke/Tests/HakukeTests"
+            name: "NotchshellTests",
+            dependencies: ["Notchshell"],
+            path: "Notchshell/Tests/NotchshellTests"
         ),
     ]
 )

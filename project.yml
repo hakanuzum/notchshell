@@ -21,7 +21,7 @@ targets:
     type: bundle.ui-testing
     platform: macOS
     sources:
-      - path: HakukeUITests
+      - path: NotchshellUITests
     dependencies:
       - target: notchshell
     settings:
