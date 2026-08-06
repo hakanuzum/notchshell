@@ -518,7 +518,7 @@ struct GhosttyContextMenuTests {
         var received = false
         var axis: String?
         let observer = NotificationCenter.default.addObserver(
-            forName: .hakukeSplitRequest, object: nil, queue: .main
+            forName: .splitRequest, object: nil, queue: .main
         ) { notif in
             received = true
             axis = notif.userInfo?["axis"] as? String
@@ -527,7 +527,7 @@ struct GhosttyContextMenuTests {
 
         // Simulate the context menu action by posting directly
         NotificationCenter.default.post(
-            name: .hakukeSplitRequest,
+            name: .splitRequest,
             object: nil,
             userInfo: ["axis": "horizontal"]
         )
@@ -540,7 +540,7 @@ struct GhosttyContextMenuTests {
         var received = false
         var axis: String?
         let observer = NotificationCenter.default.addObserver(
-            forName: .hakukeSplitRequest, object: nil, queue: .main
+            forName: .splitRequest, object: nil, queue: .main
         ) { notif in
             received = true
             axis = notif.userInfo?["axis"] as? String
@@ -548,7 +548,7 @@ struct GhosttyContextMenuTests {
         defer { NotificationCenter.default.removeObserver(observer) }
 
         NotificationCenter.default.post(
-            name: .hakukeSplitRequest,
+            name: .splitRequest,
             object: nil,
             userInfo: ["axis": "vertical"]
         )

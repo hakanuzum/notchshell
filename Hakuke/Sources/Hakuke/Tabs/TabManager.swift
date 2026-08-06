@@ -66,7 +66,7 @@ final class TabManager: ObservableObject {
         restoreTabsOrDefault()
         // Listen for split requests from context menu (right-click in terminal)
         splitObserver = NotificationCenter.default.addObserver(
-            forName: .hakukeSplitRequest, object: nil, queue: .main
+            forName: .splitRequest, object: nil, queue: .main
         ) { [weak self] notif in
             guard let self, let axis = notif.userInfo?["axis"] as? String,
                   let pm = self.activeTab?.paneManager else { return }

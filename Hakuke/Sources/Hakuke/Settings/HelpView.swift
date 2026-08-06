@@ -10,7 +10,7 @@ struct HelpView: View {
 
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("hakuke \(version)")
+                        Text("\(AppIdentity.displayName) \(version)")
                             .font(.title2.bold())
                         Text("Build \(build) · Powered by Ghostty")
                             .font(.system(size: 11))
@@ -18,9 +18,9 @@ struct HelpView: View {
                     }
                     Spacer()
                     HStack(spacing: 8) {
-                        linkButton("Website", systemImage: "globe", url: "https://hakuke.com")
-                        linkButton("GitHub", systemImage: "chevron.left.forwardslash.chevron.right", url: "https://github.com/hakanuzum/hakuke")
-                        linkButton("Report Bug", systemImage: "ladybug", url: "https://github.com/hakanuzum/hakuke/issues")
+                        linkButton("Website", systemImage: "globe", url: AppIdentity.Links.website)
+                        linkButton("GitHub", systemImage: "chevron.left.forwardslash.chevron.right", url: AppIdentity.Links.repository)
+                        linkButton("Report Bug", systemImage: "ladybug", url: AppIdentity.Links.issues)
                     }
                 }
 
@@ -118,7 +118,7 @@ struct HelpView: View {
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
 
-                    Link("Setup guide →", destination: URL(string: "https://hakuke.com#faq")!)
+                    Link("Setup guide →", destination: URL(string: AppIdentity.Links.setupGuide)!)
                         .font(.system(size: 12))
                 }
 
@@ -134,7 +134,7 @@ struct HelpView: View {
                         )
                         troubleshootRow(
                             "Wrong monitor",
-                            "hakuke drops on the display where your cursor is. To pin to a specific monitor, use Settings → Display."
+                            "\(AppIdentity.displayName) drops on the display where your cursor is. To pin to a specific monitor, use Settings → Display."
                         )
                         troubleshootRow(
                             "Themes/fonts not loading",
@@ -142,7 +142,7 @@ struct HelpView: View {
                         )
                         troubleshootRow(
                             "Reset all preferences",
-                            "Run: defaults delete com.hakuke.terminal"
+                            "Run: defaults delete \(AppIdentity.bundleID)"
                         )
                     }
                     .padding(.leading, 4)

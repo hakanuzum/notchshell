@@ -2,12 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleExecutable</key>
+	<string>notchshell</string>
 	<key>CFBundleIconFile</key>
-	<string>hakuke</string>
+	<string>notchshell</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.hakuke.app</string>
+	<string>com.notchshell.app</string>
 	<key>CFBundleName</key>
-	<string>Hakuke</string>
+	<string>notchshell</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.3.1</string>
 	<key>CFBundleVersion</key>
@@ -15,7 +17,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://github.com/hakanuzum/hakuke/releases/latest/download/appcast.xml</string>
+	<string>https://github.com/hakanuzum/notchshell/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>DO/Ypd5E8hupynUNtIqqxZCs0CNEfeWoKX8ielcAfTM=</string>
 </dict>

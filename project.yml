@@ -1,32 +1,32 @@
-name: Hakuke
+name: notchshell
 options:
-  bundleIdPrefix: com.hakuke
+  bundleIdPrefix: com.notchshell
   deploymentTarget:
     macOS: "14.0"
 
 targets:
-  Hakuke:
+  notchshell:
     type: application
     platform: macOS
     sources: []
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.hakuke.terminal
+        PRODUCT_BUNDLE_IDENTIFIER: com.notchshell.app
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: "-"
-        PRODUCT_NAME: Hakuke
+        PRODUCT_NAME: notchshell
         SWIFT_VERSION: "5.0"
 
-  HakukeUITests:
+  notchshellUITests:
     type: bundle.ui-testing
     platform: macOS
     sources:
       - path: HakukeUITests
     dependencies:
-      - target: Hakuke
+      - target: notchshell
     settings:
       base:
-        TEST_TARGET_NAME: Hakuke
-        PRODUCT_BUNDLE_IDENTIFIER: com.hakuke.uitests
+        TEST_TARGET_NAME: notchshell
+        PRODUCT_BUNDLE_IDENTIFIER: com.notchshell.uitests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "5.0"

@@ -61,6 +61,6 @@ final class TerminalPanel: NSPanel {
 }
 
 extension Notification.Name {
-    static let panelDidResignKey = Notification.Name("hakuke.panelDidResignKey")
-    static let hakukeSplitRequest = Notification.Name("hakuke.splitRequest")
+    static let panelDidResignKey = Notification.Name("\(AppIdentity.slug).panelDidResignKey")
+    static let splitRequest = Notification.Name("\(AppIdentity.slug).splitRequest")
 }

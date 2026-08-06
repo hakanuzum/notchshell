@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build Maquake, sign it, and optionally install to /Applications.
+# Build notchshell, sign it, and optionally install to /Applications.
 # Usage: ./scripts/build-install.sh [--install]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-APP_BUNDLE="$PROJECT_ROOT/build/Hakuke.app"
-ENTITLEMENTS="$PROJECT_ROOT/Hakuke/Resources/Hakuke.entitlements"
-BINARY="$APP_BUNDLE/Contents/MacOS/Hakuke"
+APP_BUNDLE="$PROJECT_ROOT/build/notchshell.app"
+ENTITLEMENTS="$PROJECT_ROOT/Hakuke/Resources/notchshell.entitlements"
+BINARY="$APP_BUNDLE/Contents/MacOS/notchshell"
 SIGNING_IDENTITY="Developer ID Application: <your identity>"
 
 cd "$PROJECT_ROOT"
@@ -24,7 +24,13 @@ else
 fi
 
 echo "==> Copying binary..."
-cp .build/apple/Products/Release/Hakuke "$BINARY"
+# The bundle skeleton is reused across builds, so prune anything left in MacOS/ from
+# an earlier product name. codesign rejects a bundle whose MacOS/ holds an executable
+# other than CFBundleExecutable ("invalid Info.plist (plist or signature have been
+# modified)"), which is how the Hakuke -> notchshell rename first surfaced.
+mkdir -p "$(dirname "$BINARY")"
+find "$(dirname "$BINARY")" -mindepth 1 -maxdepth 1 ! -name "$(basename "$BINARY")" -exec rm -rf {} +
+cp .build/apple/Products/Release/Hakuke "$BINARY"   # SPM target is still named Hakuke
 
 echo "==> Copying Info.plist..."
 cp "$PROJECT_ROOT/Hakuke/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
@@ -32,7 +38,18 @@ cp "$PROJECT_ROOT/Hakuke/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 echo "==> Copying icon..."
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 mkdir -p "$RESOURCES_DIR"
-cp "$PROJECT_ROOT/Hakuke/Resources/hakuke.icns" "$RESOURCES_DIR/" 2>/dev/null || true
+cp "$PROJECT_ROOT/Hakuke/Resources/notchshell.icns" "$RESOURCES_DIR/" 2>/dev/null || true
+
+echo "==> Copying bundled theme catalog..."
+# Ghostty looks for <resources-dir>/themes, so the catalog lands under
+# Contents/Resources/ghostty and GHOSTTY_RESOURCES_DIR points at that directory.
+# Regenerate the source with scripts/fetch-themes.sh.
+GHOSTTY_RES_DIR="$RESOURCES_DIR/ghostty"
+rm -rf "$GHOSTTY_RES_DIR/themes"
+mkdir -p "$GHOSTTY_RES_DIR/themes"
+cp -R "$PROJECT_ROOT/vendor/themes/themes/." "$GHOSTTY_RES_DIR/themes/"
+cp "$PROJECT_ROOT/vendor/themes/LICENSE" "$GHOSTTY_RES_DIR/THEMES-LICENSE"
+echo "    $(find "$GHOSTTY_RES_DIR/themes" -type f | wc -l | tr -d ' ') themes"
 
 echo "==> Copying resource bundles..."
 for bundle in .build/apple/Products/Release/*.bundle; do
@@ -103,14 +120,14 @@ codesign --force --sign "$SIGN_ID" \
 codesign --verify --deep --strict "$APP_BUNDLE"
 echo "==> Signed and verified: $APP_BUNDLE"
 
-# Install as Hakuke_dev.app to avoid conflicting with brew-installed Hakuke.app
-INSTALL_NAME="Hakuke_dev"
+# Install under a _dev suffix so a dev build never overwrites a released install.
+INSTALL_NAME="notchshell_dev"
 echo "==> Installing to /Applications/${INSTALL_NAME}.app..."
 killall "$INSTALL_NAME" 2>/dev/null || true
 sleep 0.3
 rm -rf "/Applications/${INSTALL_NAME}.app"
 cp -R "$APP_BUNDLE" "/Applications/${INSTALL_NAME}.app"
-mv "/Applications/${INSTALL_NAME}.app/Contents/MacOS/Hakuke" "/Applications/${INSTALL_NAME}.app/Contents/MacOS/${INSTALL_NAME}"
+mv "/Applications/${INSTALL_NAME}.app/Contents/MacOS/notchshell" "/Applications/${INSTALL_NAME}.app/Contents/MacOS/${INSTALL_NAME}"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${INSTALL_NAME}" "/Applications/${INSTALL_NAME}.app/Contents/Info.plist" 2>/dev/null \
     || /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string ${INSTALL_NAME}" "/Applications/${INSTALL_NAME}.app/Contents/Info.plist"
 echo "==> Installed: /Applications/${INSTALL_NAME}.app"

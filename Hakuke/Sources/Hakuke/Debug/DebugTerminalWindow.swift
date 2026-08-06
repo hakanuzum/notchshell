@@ -2,7 +2,7 @@ import AppKit
 import GhosttyKit
 import os.log
 
-private let log = OSLog(subsystem: "com.hakuke", category: "DebugWindow")
+private let log = OSLog(subsystem: AppIdentity.logSubsystem, category: "DebugWindow")
 
 /// Minimal test window — plain opaque NSWindow with GhosttyBackend directly.
 /// No SwiftUI, no NSPanel, no animation. For diagnosing transparency issues.
@@ -28,7 +28,7 @@ final class DebugTerminalWindow {
             backing: .buffered,
             defer: false
         )
-        win.title = "hakuke debug terminal (v\(Self.buildVersion))"
+        win.title = "\(AppIdentity.displayName) debug terminal (v\(Self.buildVersion))"
         win.isOpaque = true
         win.backgroundColor = .black
         win.isReleasedWhenClosed = false
@@ -122,7 +122,7 @@ final class DebugTerminalWindow {
         }
         lines.append("=== END DUMP ===")
         let text = lines.joined(separator: "\n")
-        try? text.write(toFile: "/tmp/hakuke-layer-dump.txt", atomically: true, encoding: .utf8)
+        try? text.write(toFile: AppIdentity.debugScratchPath("layer-dump.txt"), atomically: true, encoding: .utf8)
     }
 
     private func dumpView(_ view: NSView, indent: Int, into lines: inout [String]) {

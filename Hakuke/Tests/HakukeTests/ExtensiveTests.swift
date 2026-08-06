@@ -799,7 +799,7 @@ struct NotificationTests {
 
     @Test func panelDidResignKey_notificationExists() {
         let name = Notification.Name.panelDidResignKey
-        #expect(name.rawValue == "hakuke.panelDidResignKey")
+        #expect(name.rawValue == "\(AppIdentity.slug).panelDidResignKey")
     }
 
     @Test func panelDidResignKey_isPostedOnResign() {

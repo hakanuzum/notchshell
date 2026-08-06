@@ -1,24 +1,38 @@
 import AppKit
 import Foundation
+import GhosttyKit
 import os.log
 
-private let themeLog = OSLog(subsystem: "com.hakuke", category: "ThemeCatalog")
+private let themeLog = OSLog(subsystem: AppIdentity.logSubsystem, category: "ThemeCatalog")
 
 /// Ghostty theme discovery + apply.
 /// Only touches Ghostty config (`theme = "…"`). Does NOT rewrite starship/zsh/lsd.
 enum GhosttyThemeCatalog {
+    /// Ghostty resources directory shipped inside the app bundle.
+    ///
+    /// Hakuke vendors its own catalog (see `vendor/themes`) so a clean install has
+    /// themes without Ghostty.app, Homebrew or any other terminal being present.
+    static var bundledResourcesRoot: String? {
+        guard let root = Bundle.main.resourceURL?
+            .appendingPathComponent("ghostty", isDirectory: true) else { return nil }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return nil }
+        return root.path
+    }
+
+    /// Search order, most specific first — `url(forTheme:)` takes the first match, so
+    /// a theme the user dropped in `~/.config/ghostty/themes` shadows the bundled one
+    /// of the same name.
     static var resourceRoots: [String] {
         var roots: [String] = []
         if let env = ProcessInfo.processInfo.environment["GHOSTTY_RESOURCES_DIR"] {
             roots.append(env)
         }
-        roots += [
-            "/Applications/Muxy.app/Contents/Resources/Muxy_Muxy.bundle/ghostty",
-            "/Applications/Ghostty.app/Contents/Resources/ghostty",
-            "/opt/homebrew/share/ghostty",
-            "/usr/local/share/ghostty",
-            NSString(string: "~/.config/ghostty").expandingTildeInPath,
-        ]
+        roots.append(NSString(string: "~/.config/ghostty").expandingTildeInPath)
+        if let bundled = bundledResourcesRoot {
+            roots.append(bundled)
+        }
         return roots
     }
 
@@ -128,67 +142,110 @@ enum GhosttyThemeCatalog {
         return true
     }
 
+    // MARK: - Reading theme colors
+
+    /// Colors for a named theme, resolved by libghostty rather than re-parsed here.
+    ///
+    /// Returns nil when the theme is missing or malformed. Callers must surface that
+    /// instead of substituting a stand-in palette — a stand-in paints confidently
+    /// wrong colors, which is harder to notice than no colors at all.
     static func parseTerminalTheme(named name: String) -> TerminalTheme? {
-        guard let url = url(forTheme: name),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        return parseThemeText(text)
+        guard let url = url(forTheme: name) else {
+            os_log(.error, log: themeLog, "Theme not found: %{public}s", name)
+            return nil
+        }
+        return terminalTheme(atPath: url.path)
     }
 
-    static func parseThemeText(_ text: String) -> TerminalTheme {
-        var palette: [Int: NSColor] = [:]
-        var background = NSColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1)
-        var foreground = NSColor(white: 0.92, alpha: 1)
-        var cursor = NSColor(red: 0.55, green: 0.78, blue: 1.0, alpha: 1)
-        var selection = NSColor(white: 0.3, alpha: 0.6)
+    /// Load a theme file into a throwaway Ghostty config and read the resolved colors.
+    ///
+    /// `ghostty_config_get` only answers Ghostty's non-optional color fields. Measured
+    /// against libghostty: `palette` resolves to all 256 entries (Ghostty generates
+    /// 16–255 itself), and `background`/`foreground` resolve too, falling back to
+    /// Ghostty's own defaults when a theme omits them. `cursor-color`, `cursor-text`
+    /// and `selection-*` are `?Color` in Ghostty's config and are always declined, so
+    /// those come from `optionalColors(inThemeAt:)` below.
+    ///
+    /// Requires `ghostty_init` to have run (`GhosttyApp.initialize()` does it).
+    static func terminalTheme(atPath path: String) -> TerminalTheme? {
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        guard let config = ghostty_config_new() else {
+            os_log(.error, log: themeLog, "ghostty_config_new failed reading %{public}s", path)
+            return nil
+        }
+        defer { ghostty_config_free(config) }
 
-        for raw in text.components(separatedBy: .newlines) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty || line.hasPrefix("#") { continue }
+        path.withCString { ghostty_config_load_file(config, $0) }
+        ghostty_config_finalize(config)
 
-            if line.lowercased().hasPrefix("palette") {
-                if let eq = line.firstIndex(of: "=") {
-                    let rhs = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
-                    let comps = rhs.split(separator: "=", maxSplits: 1)
-                    if comps.count == 2, let idx = Int(comps[0]) {
-                        let hex = comps[1].trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-                        if let c = nsColor(hex: String(hex.prefix(6))) {
-                            palette[idx] = c
-                        }
-                    }
+        let diagnostics = ghostty_config_diagnostics_count(config)
+        if diagnostics > 0 {
+            for i in 0..<diagnostics {
+                if let message = ghostty_config_get_diagnostic(config, i).message {
+                    os_log(.error, log: themeLog, "theme %{public}s: %{public}s",
+                           path, String(cString: message))
                 }
-                continue
             }
-
-            func metaColor(_ key: String) -> NSColor? {
-                guard line.lowercased().hasPrefix(key) else { return nil }
-                guard let eq = line.firstIndex(of: "=") else { return nil }
-                let hex = line[line.index(after: eq)...]
-                    .trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-                return nsColor(hex: String(hex.prefix(6)))
-            }
-
-            if let c = metaColor("background") { background = c }
-            if let c = metaColor("foreground") { foreground = c }
-            if let c = metaColor("cursor-color") { cursor = c }
-            if let c = metaColor("selection-background") { selection = c.withAlphaComponent(0.6) }
+            return nil
         }
 
-        var ansi: [NSColor] = []
-        for i in 0..<16 {
-            ansi.append(palette[i] ?? TerminalTheme.default.ansiColors[i])
+        guard let rawPalette = configValue(config, "palette", as: ghostty_config_palette_s.self),
+              let rawBackground = configValue(config, "background", as: ghostty_config_color_s.self),
+              let rawForeground = configValue(config, "foreground", as: ghostty_config_color_s.self)
+        else { return nil }
+
+        let ansi = withUnsafeBytes(of: rawPalette.colors) { raw in
+            raw.bindMemory(to: ghostty_config_color_s.self).prefix(16).map(nsColor(_:))
         }
+        let foreground = nsColor(rawForeground)
+        let optional = optionalColors(inThemeAt: path)
 
         return TerminalTheme(
             foreground: foreground,
-            background: background,
-            cursor: cursor,
-            selectionBackground: selection,
-            ansiColors: ansi,
+            background: nsColor(rawBackground),
+            cursor: optional.cursor ?? foreground,
+            selectionBackground: (optional.selection ?? foreground).withAlphaComponent(0.6),
+            ansiColors: Array(ansi),
             fontName: TerminalTheme.default.fontName,
             fontSize: TerminalTheme.default.fontSize,
             backgroundOpacity: 0.97
         )
+    }
+
+    /// Read the two optional colors libghostty won't hand back. Absent keys stay nil so
+    /// the caller can derive them from the foreground rather than invent a color.
+    private static func optionalColors(inThemeAt path: String) -> (cursor: NSColor?, selection: NSColor?) {
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return (nil, nil) }
+        var cursor: NSColor?
+        var selection: NSColor?
+        for raw in text.components(separatedBy: .newlines) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            guard !line.hasPrefix("#"), let eq = line.firstIndex(of: "=") else { continue }
+            let key = line[..<eq].trimmingCharacters(in: .whitespaces).lowercased()
+            let hex = line[line.index(after: eq)...]
+                .trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            switch key {
+            case "cursor-color":         cursor = nsColor(hex: String(hex.prefix(6)))
+            case "selection-background": selection = nsColor(hex: String(hex.prefix(6)))
+            default:                     break
+            }
+        }
+        return (cursor, selection)
+    }
+
+    /// Read a config key into `T`. Nil when Ghostty declines the key.
+    private static func configValue<T>(_ config: ghostty_config_t, _ key: String, as: T.Type) -> T? {
+        let out = UnsafeMutablePointer<T>.allocate(capacity: 1)
+        defer { out.deallocate() }
+        let answered = key.withCString { keyPtr in
+            ghostty_config_get(config, out, keyPtr, UInt(strlen(keyPtr)))
+        }
+        return answered ? out.pointee : nil
+    }
+
+    private static func nsColor(_ c: ghostty_config_color_s) -> NSColor {
+        NSColor(red: CGFloat(c.r) / 255, green: CGFloat(c.g) / 255, blue: CGFloat(c.b) / 255, alpha: 1)
     }
 
     /// Preview swatches: [bg, fg, ansi accents…]

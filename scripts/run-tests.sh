@@ -15,6 +15,9 @@ SUITES=(
     PanelStateTests
     ScreenInfoTests
     TerminalThemeTests
+    AppIdentityTests
+    GhosttyThemeCatalogTests
+    GhosttyConfigProbeTests
     ScreenDetectorTests
     TabTests
     NotificationTests

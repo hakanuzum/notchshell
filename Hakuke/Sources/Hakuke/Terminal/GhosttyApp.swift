@@ -2,7 +2,7 @@ import AppKit
 import GhosttyKit
 import os.log
 
-private let log = OSLog(subsystem: "com.hakuke", category: "GhosttyApp")
+private let log = OSLog(subsystem: AppIdentity.logSubsystem, category: "GhosttyApp")
 
 /// Singleton managing the ghostty_app_t lifecycle. One per process, shared across all surfaces/tabs.
 /// All methods must be called on the main thread.
@@ -34,8 +34,10 @@ final class GhosttyApp: @unchecked Sendable {
         guard !initialized else { return }
         initialized = true
 
-        if Self.disableForTesting || (Self.isTestEnvironment && getenv("MACUAKE_TEST_GHOSTTY") == nil) {
-            os_log(.info, log: log, "Skipping GhosttyApp init (test environment, set MACUAKE_TEST_GHOSTTY=1 to override)")
+        if Self.disableForTesting || (Self.isTestEnvironment && getenv(AppIdentity.testGhosttyEnvVar) == nil) {
+            os_log(.info, log: log,
+                   "Skipping GhosttyApp init (test environment; set %{public}s=1 to override)",
+                   AppIdentity.testGhosttyEnvVar)
             return
         }
 
@@ -45,21 +47,13 @@ final class GhosttyApp: @unchecked Sendable {
         // Ensure GHOSTTY_RESOURCES_DIR is set so Ghostty can find themes,
         // shell integration, etc. When launched from a non-Ghostty context
         // (e.g. Raycast, Spotlight, Finder) this env var won't be inherited.
-        if getenv("GHOSTTY_RESOURCES_DIR") == nil {
-            let candidates = [
-                // Muxy ships a full Ghostty theme catalog
-                "/Applications/Muxy.app/Contents/Resources/Muxy_Muxy.bundle/ghostty",
-                "/Applications/Ghostty.app/Contents/Resources/ghostty",
-                "/opt/homebrew/share/ghostty",
-                "/usr/local/share/ghostty",
-            ]
-            for path in candidates {
-                if FileManager.default.fileExists(atPath: path + "/themes") {
-                    setenv("GHOSTTY_RESOURCES_DIR", path, 1)
-                    os_log(.info, log: log, "Set GHOSTTY_RESOURCES_DIR=%{public}s", path)
-                    break
-                }
-            }
+        // Point Ghostty at the catalog we ship. Previously this probed for another
+        // terminal's install (Ghostty.app, Homebrew, Muxy), which left the theme
+        // picker empty on any machine that had none of them.
+        if getenv("GHOSTTY_RESOURCES_DIR") == nil,
+           let bundled = GhosttyThemeCatalog.bundledResourcesRoot {
+            setenv("GHOSTTY_RESOURCES_DIR", bundled, 1)
+            os_log(.info, log: log, "Set GHOSTTY_RESOURCES_DIR=%{public}s", bundled)
         }
 
         let result = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)

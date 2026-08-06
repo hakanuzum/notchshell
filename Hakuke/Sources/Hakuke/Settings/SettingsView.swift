@@ -178,7 +178,7 @@ struct SettingsView: View {
                 GroupBox("API") {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Picker("Socket API (/tmp/hakuke.sock):", selection: $apiAccess) {
+                            Picker("Socket API (\(AppIdentity.controlSocketPath)):", selection: $apiAccess) {
                                 Text("Enabled").tag("enabled")
                                 Text("Ask on first request").tag("ask")
                                 Text("Disabled").tag("disabled")
@@ -222,7 +222,7 @@ struct SettingsView: View {
 
                 GroupBox("Terminal Theme") {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Ghostty themes (Muxy catalog). Palette button on the tab bar is the fast path.")
+                        Text("Bundled Ghostty themes; drop your own in ~/.config/ghostty/themes to override. Palette button on the tab bar is the fast path.")
                             .font(.caption)
                             .foregroundColor(.secondary)
 
@@ -391,7 +391,7 @@ struct SettingsView: View {
                 Button(action: {
                     NSApplication.shared.terminate(nil)
                 }) {
-                    Label("Quit hakuke", systemImage: "power")
+                    Label("Quit \(AppIdentity.displayName)", systemImage: "power")
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
@@ -399,7 +399,7 @@ struct SettingsView: View {
                 Divider()
                     .padding(.top, 8)
 
-                Text("hakuke v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
+                Text("\(AppIdentity.displayName) v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
 

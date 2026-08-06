@@ -4,7 +4,7 @@ import SwiftUI
 import GhosttyKit
 
 /// Unix domain socket server for external control (sideshell-compatible API).
-/// Listens at /tmp/hakuke.sock, accepts JSON requests, returns JSON responses.
+/// Listens on AppIdentity.controlSocketPath, accepts JSON requests, returns JSON responses.
 /// Uses a serial queue to process requests one at a time, preventing race conditions.
 final class ControlServer {
     let socketPath: String
@@ -12,7 +12,7 @@ final class ControlServer {
     private var readSource: DispatchSourceRead?
     private weak var windowController: WindowController?
     /// Serial queue ensures requests are processed one at a time.
-    private let requestQueue = DispatchQueue(label: "com.hakuke.api")
+    private let requestQueue = DispatchQueue(label: "\(AppIdentity.logSubsystem).api")
 
     /// API access: "ask" = prompt on first request, "enabled", "disabled"
     @MainActor static var accessState: String {
@@ -20,7 +20,7 @@ final class ControlServer {
         set { UserDefaults.standard.set(newValue, forKey: "apiAccess") }
     }
 
-    init(windowController: WindowController, socketPath: String = "/tmp/hakuke.sock", startImmediately: Bool = true) {
+    init(windowController: WindowController, socketPath: String = AppIdentity.controlSocketPath, startImmediately: Bool = true) {
         self.socketPath = socketPath
         self.windowController = windowController
         if startImmediately { start() }
@@ -152,7 +152,7 @@ final class ControlServer {
         // First time — ask user
         let alert = NSAlert()
         alert.messageText = "Allow API Access?"
-        alert.informativeText = "An external process is trying to control hakuke via the socket API. Allow this?"
+        alert.informativeText = "An external process is trying to control \(AppIdentity.displayName) via the socket API. Allow this?"
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Deny")
         alert.alertStyle = .warning

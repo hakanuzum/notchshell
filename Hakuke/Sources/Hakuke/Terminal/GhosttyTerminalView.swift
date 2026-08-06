@@ -364,11 +364,11 @@ final class GhosttyTerminalView: NSView {
     }
 
     @objc private func contextSplitH() {
-        NotificationCenter.default.post(name: .hakukeSplitRequest, object: nil, userInfo: ["axis": "horizontal"])
+        NotificationCenter.default.post(name: .splitRequest, object: nil, userInfo: ["axis": "horizontal"])
     }
 
     @objc private func contextSplitV() {
-        NotificationCenter.default.post(name: .hakukeSplitRequest, object: nil, userInfo: ["axis": "vertical"])
+        NotificationCenter.default.post(name: .splitRequest, object: nil, userInfo: ["axis": "vertical"])
     }
 
     @objc private func contextClear() {

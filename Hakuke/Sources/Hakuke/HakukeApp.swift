@@ -8,7 +8,7 @@ struct HakukeApp: App {
 
     static func main() {
         // Prevent multiple instances
-        let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.hakuke.app")
+        let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: AppIdentity.bundleID)
         if runningApps.count > 1 {
             // Another instance is already running — activate it and exit
             runningApps.first(where: { $0 != .current })?.activate()
@@ -49,18 +49,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         GhosttyApp.shared.initialize()
 
-        // Launch debug terminal window if --debug-window flag is passed
-        if CommandLine.arguments.contains("--debug-window") {
+        // Launch debug terminal window if --debug-window [command] is passed.
+        // The command used to be a path on the original author's machine, so this
+        // harness only ever worked for them; take it from the command line instead.
+        if let flagIndex = CommandLine.arguments.firstIndex(of: "--debug-window") {
+            let command = CommandLine.arguments.dropFirst(flagIndex + 1).first
+            guard let command else {
+                print("--debug-window needs a command to run, e.g. --debug-window scripts/tui-test.sh")
+                NSApp.terminate(nil)
+                return
+            }
             NSApp.setActivationPolicy(.regular)
             let dw = DebugTerminalWindow()
-            let script = "/Users/maksimnagaev/Projects/hakuke/scripts/tui-test.sh"
-            dw.open(command: script)
+            dw.open(command: command)
             debugWindow = dw
 
             // Screenshot after TUI renders
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 dw.dumpLayerTree()
-                let path = "/tmp/hakuke-debug-screenshot.png"
+                let path = AppIdentity.debugScratchPath("debug-screenshot.png")
                 dw.screenshot(to: path)
                 let alpha = dw.measureAlpha(fromScreenshot: path)
                 print("DEBUG: Screenshot saved to \(path)")
@@ -87,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let button = statusItem.button {
             button.image = NSImage(
                 systemSymbolName: "terminal",
-                accessibilityDescription: "hakuke"
+                accessibilityDescription: AppIdentity.displayName
             )
         }
 
@@ -95,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        let versionItem = NSMenuItem(title: "hakuke v\(version) (\(build))", action: nil, keyEquivalent: "")
+        let versionItem = NSMenuItem(title: "\(AppIdentity.displayName) v\(version) (\(build))", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
         menu.addItem(versionItem)
         menu.addItem(.separator())
@@ -122,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: "Quit hakuke", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit \(AppIdentity.displayName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
 
         statusItem.menu = menu
@@ -162,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard terminalCount > 0 else { return .terminateNow }
 
         let alert = NSAlert()
-        alert.messageText = "Quit hakuke?"
+        alert.messageText = "Quit \(AppIdentity.displayName)?"
         alert.informativeText = "You have \(terminalCount) open terminal tab\(terminalCount == 1 ? "" : "s"). All sessions will be closed."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Quit")

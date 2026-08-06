@@ -30,7 +30,7 @@ final class MCPHTTPServer {
 
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
         let server = Server(
-            name: "hakuke",
+            name: AppIdentity.slug,
             version: version,
             capabilities: .init(tools: .init(listChanged: false))
         )
@@ -452,7 +452,7 @@ final class MCPHTTPServer {
         // "ask" — show dialog
         let alert = NSAlert()
         alert.messageText = "Allow MCP Access?"
-        alert.informativeText = "An MCP client is trying to control hakuke via HTTP. Allow this?"
+        alert.informativeText = "An MCP client is trying to control \(AppIdentity.displayName) via HTTP. Allow this?"
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Deny")
         alert.alertStyle = .warning
