@@ -1,22 +1,20 @@
 import SwiftUI
 import AppKit
 
-/// Muxy-style quick theme picker. Applies Ghostty theme only (no starship/zsh rewrites).
+/// Quick theme picker. Writes to the config layer this app owns; the user's own
+/// Ghostty config is never touched.
 struct ThemePickerPopover: View {
     @ObservedObject var windowController: WindowController
     let onDismiss: () -> Void
 
+    @StateObject private var catalog = ThemeCatalogStore()
     @State private var filter = ""
-    @State private var themes: [String] = []
-    @State private var selected: String = GhosttyThemeCatalog.currentThemeName()
-        ?? UserDefaults.standard.string(forKey: "selectedGhosttyTheme")
-        ?? "Catppuccin Mocha"
+    @State private var selected: String = GhosttyThemeCatalog.currentThemeName() ?? ""
     @State private var applying: String?
-    @State private var swatchCache: [String: [Color]] = [:]
 
     private var filtered: [String] {
-        if filter.isEmpty { return themes }
-        return themes.filter { $0.localizedCaseInsensitiveContains(filter) }
+        guard !filter.isEmpty else { return catalog.themeNames }
+        return catalog.themeNames.filter { $0.localizedCaseInsensitiveContains(filter) }
     }
 
     var body: some View {
@@ -34,39 +32,36 @@ struct ThemePickerPopover: View {
 
             Divider()
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(filtered, id: \.self) { name in
-                        ThemeRow(
-                            name: name,
-                            isSelected: name == selected,
-                            isApplying: applying == name,
-                            swatches: swatchCache[name] ?? GhosttyThemeCatalog.swatchColors(for: name)
-                        ) {
-                            apply(name)
-                        }
-                        .onAppear {
-                            if swatchCache[name] == nil {
-                                swatchCache[name] = GhosttyThemeCatalog.swatchColors(for: name)
+            ZStack {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(filtered, id: \.self) { name in
+                            ThemeRow(
+                                name: name,
+                                isSelected: name == selected,
+                                isApplying: applying == name,
+                                swatches: catalog.swatches(for: name)
+                            ) {
+                                apply(name)
                             }
                         }
                     }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
+
+                if catalog.isLoading {
+                    ProgressView().controlSize(.small)
+                } else if filtered.isEmpty {
+                    Text(catalog.themeNames.isEmpty ? "No themes found" : "No themes match")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             .frame(width: 320, height: 320)
 
-            if filtered.isEmpty {
-                Text("No themes match")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(16)
-            }
-
             Divider()
             HStack {
-                Text("\(filtered.count) / \(themes.count) themes")
+                Text("\(filtered.count) / \(catalog.themeNames.count) themes")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -80,14 +75,11 @@ struct ThemePickerPopover: View {
         }
         .frame(width: 320, height: 400)
         .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear {
+        .task {
             windowController.beginTransientInteraction(seconds: 120)
-            themes = GhosttyThemeCatalog.availableThemes()
+            await catalog.load()
             if let current = GhosttyThemeCatalog.currentThemeName() {
                 selected = current
-            }
-            for name in themes.prefix(24) {
-                swatchCache[name] = GhosttyThemeCatalog.swatchColors(for: name)
             }
         }
         .onDisappear {
@@ -101,7 +93,7 @@ struct ThemePickerPopover: View {
         let ok = windowController.applyGhosttyTheme(named: name)
         applying = nil
         if ok { selected = name }
-        // Keep picker open to try multiple themes
+        // Keep the picker open so several themes can be tried in a row.
     }
 }
 
@@ -109,7 +101,9 @@ private struct ThemeRow: View {
     let name: String
     let isSelected: Bool
     let isApplying: Bool
-    let swatches: [Color]
+    /// Nil when the theme could not be read. Shown as such rather than filled with
+    /// stand-in colours, which would look like a real palette.
+    let swatches: [Color]?
     let onSelect: () -> Void
 
     @State private var hovered = false
@@ -132,20 +126,27 @@ private struct ThemeRow: View {
                     }
                 }
 
-                HStack(spacing: 2) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(swatches.first ?? Color.black)
-                            .frame(width: 28, height: 18)
-                        Text("Ab")
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundColor(swatches.count > 1 ? swatches[1] : .white)
+                if let swatches {
+                    HStack(spacing: 2) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(swatches.first ?? Color.black)
+                                .frame(width: 28, height: 18)
+                            Text("Ab")
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundColor(swatches.count > 1 ? swatches[1] : .white)
+                        }
+                        ForEach(Array(swatches.dropFirst(2).prefix(14).enumerated()), id: \.offset) { _, colour in
+                            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                .fill(colour)
+                                .frame(width: 14, height: 18)
+                        }
                     }
-                    ForEach(Array(swatches.dropFirst(2).prefix(14).enumerated()), id: \.offset) { _, c in
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(c)
-                            .frame(width: 14, height: 18)
-                    }
+                } else {
+                    Label("Could not be read", systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .frame(height: 18)
                 }
             }
             .padding(.horizontal, 12)

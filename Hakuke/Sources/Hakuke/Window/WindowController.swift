@@ -23,6 +23,7 @@ final class WindowController: ObservableObject {
 
     private var previousApp: NSRunningApplication?
     private var resignObserver: Any?
+    private var themeObserver: NSObjectProtocol?
     private var appSwitchObserver: Any?
     private var screenObserver: Any?
     private var keyMonitor: Any?
@@ -96,6 +97,9 @@ final class WindowController: ObservableObject {
         if let obs = resignObserver {
             NotificationCenter.default.removeObserver(obs)
         }
+        if let obs = themeObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
         if let obs = appSwitchObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(obs)
         }
@@ -142,6 +146,16 @@ final class WindowController: ObservableObject {
     // MARK: - Observers
 
     private func setupObservers() {
+        // Repaint chrome when the theme in effect changes — including when a
+        // light/dark pair switches side because the system appearance did.
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: .terminalThemeDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refreshChromeTheme() }
+        }
+
         resignObserver = NotificationCenter.default.addObserver(
             forName: .panelDidResignKey,
             object: panel,
@@ -356,12 +370,15 @@ final class WindowController: ObservableObject {
     /// Apply Ghostty theme only (does not rewrite starship/zsh).
     @discardableResult
     func applyGhosttyTheme(named name: String) -> Bool {
+        applyGhosttyTheme(.single(name))
+    }
+
+    /// Apply a theme selection and repaint the tab bar and panel to match.
+    @discardableResult
+    func applyGhosttyTheme(_ selection: ThemeSelection) -> Bool {
         beginTransientInteraction(seconds: 3.0)
-        let ok = GhosttyApp.shared.applyTheme(named: name)
-        if let parsed = GhosttyThemeCatalog.parseTerminalTheme(named: name) {
-            tabManager.theme = parsed
-            tabManager.objectWillChange.send()
-        }
+        let ok = GhosttyApp.shared.apply(themeSelection: selection)
+        refreshChromeTheme(for: selection)
         if state == .visible {
             panel.ignoresMouseEvents = false
             panel.makeKeyAndOrderFront(nil)
@@ -369,6 +386,17 @@ final class WindowController: ObservableObject {
         }
         beginTransientInteraction(seconds: 1.0)
         return ok
+    }
+
+    /// Repaint chrome from whichever half of the selection the current appearance
+    /// selects. A finalized config collapses a pair to one side, so the side has to be
+    /// chosen here rather than read back from Ghostty.
+    func refreshChromeTheme(for selection: ThemeSelection? = nil) {
+        guard let selection = selection ?? GhosttyThemeCatalog.currentSelection() else { return }
+        let name = selection.theme(forDarkAppearance: GhosttyApp.shared.systemPrefersDark)
+        guard let theme = GhosttyThemeCatalog.parseTerminalTheme(named: name) else { return }
+        tabManager.theme = theme
+        tabManager.objectWillChange.send()
     }
 
     func setChromeStyle(_ style: PanelChromeStyle) {

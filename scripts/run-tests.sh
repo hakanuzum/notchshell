@@ -18,6 +18,8 @@ SUITES=(
     AppIdentityTests
     ManagedConfigTests
     GhosttyThemeCatalogTests
+    ThemeCatalogPerformanceTests
+    ThemeSelectionTests
     GhosttyConfigProbeTests
     ScreenDetectorTests
     TabTests

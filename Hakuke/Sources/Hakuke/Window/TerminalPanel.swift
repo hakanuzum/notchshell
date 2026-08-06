@@ -63,4 +63,7 @@ final class TerminalPanel: NSPanel {
 extension Notification.Name {
     static let panelDidResignKey = Notification.Name("\(AppIdentity.slug).panelDidResignKey")
     static let splitRequest = Notification.Name("\(AppIdentity.slug).splitRequest")
+    /// Posted when the theme in effect changes, including when a light/dark pair
+    /// switches side because the system appearance changed.
+    static let terminalThemeDidChange = Notification.Name("\(AppIdentity.slug).themeDidChange")
 }

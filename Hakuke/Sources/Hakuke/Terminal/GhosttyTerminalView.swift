@@ -73,10 +73,11 @@ final class GhosttyTerminalView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        // Always use dark scheme — hakuke's terminal is always dark
-        // regardless of system appearance.
+        // Report the appearance that is actually in effect. This used to be pinned to
+        // dark, which fought GhosttyApp's own scheme handling and, more importantly,
+        // made `theme = light:A,dark:B` inert — Ghostty was never told to switch.
         guard let surface = backend?.surface else { return }
-        ghostty_surface_set_color_scheme(surface, GHOSTTY_COLOR_SCHEME_DARK)
+        ghostty_surface_set_color_scheme(surface, GhosttyApp.shared.systemColorScheme)
     }
 
     func updateSurfaceSize() {

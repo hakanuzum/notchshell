@@ -5,13 +5,16 @@ import os.log
 
 private let themeLog = OSLog(subsystem: AppIdentity.logSubsystem, category: "ThemeCatalog")
 
-/// Ghostty theme discovery + apply.
-/// Only touches Ghostty config (`theme = "…"`). Does NOT rewrite starship/zsh/lsd.
+/// Finding themes on disk and reading their colors.
+///
+/// Selecting one writes to `ManagedConfig`, the layer this app owns. Nothing here
+/// touches the user's Ghostty config, and nothing touches shell configuration —
+/// a terminal that rewrites your dotfiles is not a terminal you can trust.
 enum GhosttyThemeCatalog {
     /// Ghostty resources directory shipped inside the app bundle.
     ///
-    /// Hakuke vendors its own catalog (see `vendor/themes`) so a clean install has
-    /// themes without Ghostty.app, Homebrew or any other terminal being present.
+    /// The catalog is vendored (see `vendor/themes`) so a clean install has themes
+    /// without Ghostty.app, Homebrew or any other terminal being present.
     static var bundledResourcesRoot: String? {
         guard let root = Bundle.main.resourceURL?
             .appendingPathComponent("ghostty", isDirectory: true) else { return nil }
@@ -79,15 +82,35 @@ enum GhosttyThemeCatalog {
     /// belonging to the user. Now it writes one file we own, and the theme is read
     /// from wherever `url(forTheme:)` found it — no copying.
     @discardableResult
-    static func applyTheme(named name: String) -> Bool {
-        guard url(forTheme: name) != nil else {
-            os_log(.error, log: themeLog, "Theme not found: %{public}s", name)
-            return false
+    static func apply(_ selection: ThemeSelection) -> Bool {
+        // Every named theme must exist before anything is written; half-applying a
+        // pair would leave one appearance on a theme the user did not choose.
+        switch selection {
+        case .single(let name):
+            guard url(forTheme: name) != nil else {
+                os_log(.error, log: themeLog, "Theme not found: %{public}s", name)
+                return false
+            }
+        case .pair(let light, let dark):
+            for name in [light, dark] where url(forTheme: name) == nil {
+                os_log(.error, log: themeLog, "Theme not found: %{public}s", name)
+                return false
+            }
         }
-        guard ManagedConfig.setTheme(name) else { return false }
-        UserDefaults.standard.set(name, forKey: "selectedGhosttyTheme")
-        os_log(.info, log: themeLog, "Set theme=%{public}s", name)
+        guard ManagedConfig.setTheme(selection.configValue) else { return false }
+        UserDefaults.standard.set(selection.configValue, forKey: "selectedGhosttyTheme")
+        os_log(.info, log: themeLog, "Set theme=%{public}s", selection.configValue)
         return true
+    }
+
+    @discardableResult
+    static func applyTheme(named name: String) -> Bool {
+        apply(.single(name))
+    }
+
+    /// The current selection, parsed. Nil when nothing is set.
+    static func currentSelection() -> ThemeSelection? {
+        ManagedConfig.currentTheme().flatMap { ThemeSelection(configValue: $0) }
     }
 
     // MARK: - Reading theme colors
@@ -196,23 +219,6 @@ enum GhosttyThemeCatalog {
         NSColor(red: CGFloat(c.r) / 255, green: CGFloat(c.g) / 255, blue: CGFloat(c.b) / 255, alpha: 1)
     }
 
-    /// Preview swatches: [bg, fg, ansi accents…]
-    static func swatchColors(for name: String) -> [Color] {
-        guard let theme = parseTerminalTheme(named: name) else {
-            return Array(repeating: Color.gray, count: 10)
-        }
-        var colors: [Color] = [
-            Color(nsColor: theme.background),
-            Color(nsColor: theme.foreground),
-        ]
-        for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] {
-            if i < theme.ansiColors.count {
-                colors.append(Color(nsColor: theme.ansiColors[i]))
-            }
-        }
-        return colors
-    }
-
     private static func nsColor(hex: String) -> NSColor? {
         guard hex.count == 6, let v = UInt32(hex, radix: 16) else { return nil }
         let r = CGFloat((v >> 16) & 0xff) / 255
@@ -221,5 +227,3 @@ enum GhosttyThemeCatalog {
         return NSColor(red: r, green: g, blue: b, alpha: 1)
     }
 }
-
-import SwiftUI

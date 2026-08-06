@@ -173,4 +173,55 @@ struct GhosttyConfigProbeTests {
         print("PROBE load_default_files alone: foreground -> \(defaultsFG) (#aaaaaa = file was read)")
         print("PROBE load_default_files alone: background -> \(defaultsBG) (#222222 = include followed)")
     }
+
+    /// Where does `theme = light:A,dark:B` get resolved?
+    ///
+    /// If a finalized config already reports one of the two backgrounds, the choice is
+    /// baked in at config level and switching appearance means reloading. If it
+    /// reports something else, the pair survives into the surface and
+    /// `ghostty_surface_set_color_scheme` is what picks a side — which would mean the
+    /// scheme we report has to be the real system appearance, not something derived
+    /// from the palette.
+    @Test func probeDualThemeResolution() throws {
+        guard ProcessInfo.processInfo.environment[AppIdentity.testGhosttyEnvVar] != nil else {
+            print("PROBE: skipped — set \(AppIdentity.testGhosttyEnvVar)=1 to run")
+            return
+        }
+        _ = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
+
+        // Point Ghostty at the vendored catalog so theme names resolve.
+        let themes = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("vendor/themes")
+        setenv("GHOSTTY_RESOURCES_DIR", themes.path, 1)
+        defer { unsetenv("GHOSTTY_RESOURCES_DIR") }
+
+        func background(of themeValue: String) -> String {
+            let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("hakuke-dual-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let file = dir.appendingPathComponent("config")
+            try? "theme = \(themeValue)\n".write(to: file, atomically: true, encoding: .utf8)
+
+            guard let config = ghostty_config_new() else { return "no config" }
+            defer { ghostty_config_free(config) }
+            file.path.withCString { ghostty_config_load_file(config, $0) }
+            ghostty_config_load_recursive_files(config)
+            ghostty_config_finalize(config)
+            let diagnostics = ghostty_config_diagnostics_count(config)
+            var note = ""
+            if diagnostics > 0, let m = ghostty_config_get_diagnostic(config, 0).message {
+                note = "  [\(String(cString: m))]"
+            }
+            return (get(config, "background", as: ghostty_config_color_s.self).map(hex) ?? "DECLINED") + note
+        }
+
+        let light = "Catppuccin Latte"
+        let dark = "Catppuccin Mocha"
+        print("PROBE single light  '\(light)' -> \(background(of: light))")
+        print("PROBE single dark   '\(dark)'  -> \(background(of: dark))")
+        print("PROBE pair          -> \(background(of: "light:\(light),dark:\(dark)"))")
+    }
 }

@@ -15,6 +15,8 @@ final class GhosttyApp: @unchecked Sendable {
     /// Prevents wakeup_cb from flooding the main dispatch queue.
     /// Set to true when a tick is already enqueued, cleared after tick runs.
     private var tickPending = false
+    /// Kept alive for the lifetime of the app; releasing it stops appearance updates.
+    private var appearanceObservation: NSKeyValueObservation?
 
     private init() {}
 
@@ -180,6 +182,12 @@ final class GhosttyApp: @unchecked Sendable {
         ) { [weak self] _ in
             if let app = self?.app { ghostty_app_set_focus(app, false) }
         }
+
+        // Follow the system appearance so a light/dark theme pair switches with it.
+        appearanceObservation = NSApp?.observe(\.effectiveAppearance, options: [.new]) { _, _ in
+            DispatchQueue.main.async { GhosttyApp.shared.broadcastColorScheme() }
+        }
+        broadcastColorScheme()
     }
 
     // MARK: - Tick
@@ -304,28 +312,70 @@ final class GhosttyApp: @unchecked Sendable {
     /// included from here and is never written to. See `ManagedConfig`.
     var configPath: String { ManagedConfig.rootPath }
 
-    /// Apply a Ghostty theme by name (config only) and reload all surfaces.
+    // MARK: - Colour scheme
+
+    /// The system appearance, which is what Ghostty needs in order to pick a side of a
+    /// `theme = light:A,dark:B` pair.
+    ///
+    /// This used to be derived from the active palette's brightness, and
+    /// `GhosttyTerminalView` separately pinned every surface to dark. Both were wrong
+    /// for the same reason: this value is an *input* telling Ghostty which appearance
+    /// is in effect, not a description of the colours we ended up with. Reporting dark
+    /// unconditionally also made a light/dark pair impossible — Ghostty would never be
+    /// told to switch.
+    var systemColorScheme: ghostty_color_scheme_e {
+        let appearance = NSApp?.effectiveAppearance ?? NSAppearance.currentDrawing()
+        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        return isDark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT
+    }
+
+    var systemPrefersDark: Bool { systemColorScheme == GHOSTTY_COLOR_SCHEME_DARK }
+
+    /// Tell every surface which appearance is in effect, then refresh chrome to match
+    /// whichever half of a theme pair that selects.
+    func broadcastColorScheme() {
+        let scheme = systemColorScheme
+        if let app { ghostty_app_set_color_scheme(app, scheme) }
+        for backend in activeBackends.values {
+            guard let surface = backend.surface else { continue }
+            ghostty_surface_set_color_scheme(surface, scheme)
+            ghostty_surface_refresh(surface)
+        }
+        refreshChromeColors()
+    }
+
+    /// Repaint the app's own chrome from the theme currently in effect.
+    ///
+    /// The chrome cannot read the resolved colours back from a live surface, and a
+    /// finalized config collapses a pair to one side regardless of appearance
+    /// (measured: `light:Latte,dark:Mocha` reports Latte's background). So resolve the
+    /// pair here and read that theme's file directly.
+    func refreshChromeColors() {
+        guard let value = ManagedConfig.currentTheme(),
+              let selection = ThemeSelection(configValue: value) else { return }
+        let name = selection.theme(forDarkAppearance: systemPrefersDark)
+        guard let theme = GhosttyThemeCatalog.parseTerminalTheme(named: name) else { return }
+        for backend in activeBackends.values {
+            backend.applyBackgroundColor(theme.background)
+        }
+        NotificationCenter.default.post(name: .terminalThemeDidChange, object: nil)
+    }
+
+    // MARK: - Theme
+
+    /// Apply a theme selection and reload every surface.
+    @discardableResult
+    func apply(themeSelection selection: ThemeSelection) -> Bool {
+        guard GhosttyThemeCatalog.apply(selection) else { return false }
+        reloadConfig()
+        broadcastColorScheme()
+        os_log(.info, log: log, "Theme applied: %{public}s", selection.configValue)
+        return true
+    }
+
     @discardableResult
     func applyTheme(named name: String) -> Bool {
-        guard GhosttyThemeCatalog.applyTheme(named: name) else { return false }
-        reloadConfig()
-        if let parsed = GhosttyThemeCatalog.parseTerminalTheme(named: name) {
-            for backend in activeBackends.values {
-                backend.applyBackgroundColor(parsed.background)
-                if let surface = backend.surface {
-                    let isLight = parsed.background.usingColorSpace(.deviceRGB).map {
-                        (0.2126 * $0.redComponent + 0.7152 * $0.greenComponent + 0.0722 * $0.blueComponent) > 0.5
-                    } ?? false
-                    ghostty_surface_set_color_scheme(
-                        surface,
-                        isLight ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK
-                    )
-                    ghostty_surface_refresh(surface)
-                }
-            }
-        }
-        os_log(.info, log: log, "Theme applied: %{public}s", name)
-        return true
+        apply(themeSelection: .single(name))
     }
 
     /// Open our config file in the default editor. It carries the include lines that

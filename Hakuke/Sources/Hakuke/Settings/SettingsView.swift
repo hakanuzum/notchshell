@@ -20,10 +20,16 @@ struct SettingsView: View {
     @State private var customShellPath: String = ""
     @State private var isCustomShell: Bool = false
     @State private var shellTestResult: ShellTestResult?
-    @State private var themeNames: [String] = GhosttyThemeCatalog.availableThemes()
-    @State private var selectedTheme: String = GhosttyThemeCatalog.currentThemeName()
-        ?? UserDefaults.standard.string(forKey: "selectedGhosttyTheme")
-        ?? "Catppuccin Mocha"
+    @StateObject private var themeCatalog = ThemeCatalogStore()
+    /// Seeded from the stored selection. `currentThemeName()` returns the raw config
+    /// value, which may be a `light:A,dark:B` pair, so it is parsed rather than used
+    /// as a picker tag directly.
+    @State private var followsAppearance: Bool =
+        GhosttyThemeCatalog.currentSelection()?.followsSystemAppearance ?? false
+    @State private var lightTheme: String =
+        GhosttyThemeCatalog.currentSelection()?.lightTheme ?? "Catppuccin Latte"
+    @State private var darkTheme: String =
+        GhosttyThemeCatalog.currentSelection()?.darkTheme ?? "Catppuccin Mocha"
     @State private var themeFilter: String = ""
     @State private var themeApplyMessage: String?
     @FocusState private var shellFieldFocused: Bool
@@ -229,31 +235,46 @@ struct SettingsView: View {
                         TextField("Filter themes…", text: $themeFilter)
                             .textFieldStyle(.roundedBorder)
 
-                        let filtered = themeNames.filter {
+                        let filtered = themeCatalog.themeNames.filter {
                             themeFilter.isEmpty || $0.localizedCaseInsensitiveContains(themeFilter)
                         }
 
-                        Picker("Theme", selection: $selectedTheme) {
+                        Toggle("Follow system appearance", isOn: $followsAppearance)
+                            .help("Use one theme in Light mode and another in Dark mode.")
+
+                        Picker(followsAppearance ? "Light theme" : "Theme", selection: $lightTheme) {
                             ForEach(filtered, id: \.self) { name in
                                 Text(name).tag(name)
                             }
                         }
                         .pickerStyle(.menu)
 
+                        if followsAppearance {
+                            Picker("Dark theme", selection: $darkTheme) {
+                                ForEach(filtered, id: \.self) { name in
+                                    Text(name).tag(name)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+
                         HStack(spacing: 10) {
                             Button("Apply Theme") {
-                                let ok = windowController.applyGhosttyTheme(named: selectedTheme)
+                                let selection: ThemeSelection = followsAppearance
+                                    ? .pair(light: lightTheme, dark: darkTheme)
+                                    : .single(lightTheme)
+                                let ok = windowController.applyGhosttyTheme(selection)
                                 themeApplyMessage = ok
-                                    ? "Applied “\(selectedTheme)”."
+                                    ? "Applied “\(selection.configValue)”."
                                     : "Theme not found."
                             }
                             .buttonStyle(.borderedProminent)
 
-                            Button("Refresh List") {
-                                themeNames = GhosttyThemeCatalog.availableThemes()
-                                themeApplyMessage = "\(themeNames.count) themes"
+                            Button("Reload Themes") {
+                                Task { await themeCatalog.reload() }
                             }
                             .buttonStyle(.bordered)
+                            .disabled(themeCatalog.isLoading)
 
                             Spacer()
                         }
@@ -264,7 +285,7 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        Text("\(themeNames.count) themes · also available from the palette button on the tab bar")
+                        Text("\(themeCatalog.themeNames.count) themes · also available from the palette button on the tab bar")
                             .font(.caption2)
                             .foregroundColor(.secondary)
 
@@ -283,10 +304,12 @@ struct SettingsView: View {
                         }
                     }
                     .padding(8)
-                    .onAppear {
-                        themeNames = GhosttyThemeCatalog.availableThemes()
-                        if let current = GhosttyThemeCatalog.currentThemeName() {
-                            selectedTheme = current
+                    .task {
+                        await themeCatalog.load()
+                        if let selection = GhosttyThemeCatalog.currentSelection() {
+                            followsAppearance = selection.followsSystemAppearance
+                            lightTheme = selection.lightTheme
+                            darkTheme = selection.darkTheme
                         }
                     }
                 }
