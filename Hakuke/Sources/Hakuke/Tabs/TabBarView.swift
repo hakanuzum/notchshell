@@ -5,10 +5,150 @@ struct TabBarView: View {
     @ObservedObject var tabManager: TabManager
     @ObservedObject var windowController: WindowController
     @State private var showTabList = false
+    @State private var showThemePicker = false
     @State private var tabsOverflow = false
     @State private var draggedTabID: String?
 
+    private var chrome: PanelChromeStyle {
+        windowController.chromeStyle
+    }
+
+    private var isSoft: Bool {
+        PanelChrome.isSoftLight(chrome)
+    }
+
     var body: some View {
+        Group {
+            if isSoft {
+                // Unclutter: tabs + controls on the BOTTOM strip
+                softBottomBar
+            } else {
+                classicTopBar
+            }
+        }
+        .environment(\.colorScheme, PanelChrome.colorScheme(style: chrome))
+        .contentShape(Rectangle())
+    }
+
+    // MARK: - Soft bottom bar (tabs left · palette / + / … right)
+
+    private var softBottomBar: some View {
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 3) {
+                    ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
+                        SoftTabPill(
+                            title: shortTitle(tab.displayTitle),
+                            kind: tab.kind,
+                            isActive: index == tabManager.activeTabIndex,
+                            onSelect: { tabManager.selectTab(at: index) },
+                            onClose: { tabManager.closeTab(id: tab.id) }
+                        )
+                    }
+                }
+                .padding(.leading, 10)
+            }
+
+            Spacer(minLength: 4)
+
+            HStack(spacing: 4) {
+                if tabManager.tabs.count > 3 {
+                    Button(action: { showTabList.toggle() }) {
+                        Image(systemName: "list.bullet")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .frame(width: 24, height: 20)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showTabList, arrowEdge: .top) {
+                        TabListPopover(tabManager: tabManager, onDismiss: { showTabList = false })
+                    }
+                }
+
+                // Palette — right side, Muxy-style
+                Button(action: { showThemePicker.toggle() }) {
+                    Image(systemName: "paintpalette")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .frame(width: 26, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Themes")
+                .popover(isPresented: $showThemePicker, arrowEdge: .top) {
+                    ThemePickerPopover(windowController: windowController) {
+                        showThemePicker = false
+                    }
+                }
+                .onChange(of: showThemePicker) { _, open in
+                    if open {
+                        windowController.beginTransientInteraction(seconds: 120)
+                    } else {
+                        windowController.beginTransientInteraction(seconds: 0.8)
+                    }
+                }
+
+                softIcon("plus", help: "New Tab") { tabManager.addTab() }
+
+                Menu {
+                    Button {
+                        windowController.isPinned.toggle()
+                    } label: {
+                        Label(
+                            windowController.isPinned ? "Unpin" : "Pin",
+                            systemImage: windowController.isPinned ? "pin.slash" : "pin"
+                        )
+                    }
+                    Divider()
+                    Button("Settings…") { windowController.openSettings() }
+                    Button("Help") { windowController.openHelp() }
+                    Button("Hide") { windowController.hide() }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .frame(width: 24, height: 20)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .help("More")
+            }
+            .padding(.trailing, 10)
+        }
+        .frame(height: 32)
+        .background(softBarBackground)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.black.opacity(0.08))
+                .frame(height: 0.5)
+        }
+    }
+
+    private var softBarBackground: some View {
+        ZStack {
+            Color(nsColor: NSColor(calibratedWhite: 0.94, alpha: 0.96))
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.45)
+                .environment(\.colorScheme, .light)
+        }
+    }
+
+    private func softIcon(_ name: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: name)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .frame(width: 24, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    // MARK: - Classic dark top bar (fallback)
+
+    private var classicTopBar: some View {
         HStack(spacing: 0) {
             GeometryReader { outerGeo in
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -28,9 +168,7 @@ struct TabBarView: View {
                                             tabManager.editingTabID = editing ? tab.id : nil
                                         }
                                     ),
-                                    onSelect: {
-                                        tabManager.selectTab(at: index)
-                                    },
+                                    onSelect: { tabManager.selectTab(at: index) },
                                     onClose: { tabManager.closeTab(id: tab.id) },
                                     onRename: { name in
                                         tabManager.renameTab(id: tab.id, name: name)
@@ -61,9 +199,7 @@ struct TabBarView: View {
                             }
                         })
 
-                        // Spacer to fill remaining width
-                        Color.clear
-                            .frame(maxWidth: .infinity)
+                        Color.clear.frame(maxWidth: .infinity)
                     }
                     .frame(minWidth: outerGeo.size.width, alignment: .leading)
                 }
@@ -73,66 +209,71 @@ struct TabBarView: View {
                 tabManager.addTab()
             })
 
-            // Tab list button — visible when tabs overflow
             if tabsOverflow {
                 Button(action: { showTabList.toggle() }) {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.secondary)
                         .frame(width: 24, height: 24)
-                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                                .popover(isPresented: $showTabList, arrowEdge: .bottom) {
+                .popover(isPresented: $showTabList, arrowEdge: .bottom) {
                     TabListPopover(tabManager: tabManager, onDismiss: { showTabList = false })
                 }
             }
 
             Spacer()
 
-            // Pin button
             Button(action: { windowController.isPinned.toggle() }) {
                 Image(systemName: windowController.isPinned ? "pin.fill" : "pin")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(windowController.isPinned ? .yellow.opacity(0.9) : .secondary)
                     .rotationEffect(.degrees(windowController.isPinned ? 0 : 45))
                     .frame(width: 24, height: 24)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(windowController.isPinned ? Color.white.opacity(0.1) : Color.clear)
-                    )
-                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(windowController.isPinned ? "Unpin (auto-hide on focus loss)" : "Pin (stay visible)")
-            .animation(.easeInOut(duration: 0.15), value: windowController.isPinned)
-            
-            // Settings button
+
+            Button(action: { showThemePicker.toggle() }) {
+                Image(systemName: "paintpalette")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Themes")
+            .popover(isPresented: $showThemePicker, arrowEdge: .bottom) {
+                ThemePickerPopover(windowController: windowController) {
+                    showThemePicker = false
+                }
+            }
+            .onChange(of: showThemePicker) { _, open in
+                if open {
+                    windowController.beginTransientInteraction(seconds: 120)
+                } else {
+                    windowController.beginTransientInteraction(seconds: 0.8)
+                }
+            }
+
             Button(action: { windowController.openSettings() }) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.secondary)
                     .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Settings")
-            
+
             Button(action: { tabManager.addTab() }) {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
                     .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .padding(.trailing, 8)
-                    }
+        }
         .padding(.top, 4)
         .frame(height: 36)
         .background(Color.black.opacity(0.85))
-        .environment(\.colorScheme, .dark)
-        .contentShape(Rectangle())
     }
 
     private func shortTitle(_ title: String) -> String {
@@ -140,7 +281,55 @@ struct TabBarView: View {
     }
 }
 
-/// Extract last path component for tab display. Testable free function.
+// MARK: - Soft tab pill
+
+private struct SoftTabPill: View {
+    let title: String
+    let kind: Tab.TabKind
+    let isActive: Bool
+    let onSelect: () -> Void
+    let onClose: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if kind == .settings {
+                Image(systemName: "gearshape").font(.system(size: 9))
+            } else if kind == .help {
+                Image(systemName: "questionmark.circle").font(.system(size: 9))
+            }
+            Text(title)
+                .font(.system(size: 11, weight: isActive ? .semibold : .regular))
+                .lineLimit(1)
+                .frame(maxWidth: 120)
+            if isHovered || isActive {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .frame(width: 12, height: 12)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .foregroundColor(isActive ? Color(nsColor: .labelColor) : Color(nsColor: .secondaryLabelColor))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(
+                    isActive
+                        ? Color.black.opacity(0.08)
+                        : (isHovered ? Color.black.opacity(0.04) : Color.clear)
+                )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .onHover { isHovered = $0 }
+    }
+}
+
 func tabShortTitle(_ title: String) -> String {
     let components = title.split(separator: "/")
     return components.last.map(String.init) ?? title
@@ -173,14 +362,12 @@ struct TabItemView: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            // Clickable content area (icon + text + badge)
             HStack(spacing: 4) {
                 if let icon {
                     Image(systemName: icon)
                         .font(.system(size: 10))
                         .foregroundColor(isActive ? .primary : .secondary)
                 }
-
                 if isEditing {
                     TextField("Tab name", text: $editText, onCommit: {
                         onRename(editText.isEmpty ? nil : editText)
@@ -190,18 +377,14 @@ struct TabItemView: View {
                     .font(.system(size: 11))
                     .frame(maxWidth: 120)
                     .focused($fieldFocused)
-                    .onExitCommand {
-                        isEditing = false
-                    }
+                    .onExitCommand { isEditing = false }
                     .onChange(of: fieldFocused) {
                         if !fieldFocused {
                             onRename(editText.isEmpty ? nil : editText)
                             isEditing = false
                         }
                     }
-                    .onAppear {
-                        fieldFocused = true
-                    }
+                    .onAppear { fieldFocused = true }
                 } else {
                     Text(title)
                         .font(.system(size: 11))
@@ -210,7 +393,6 @@ struct TabItemView: View {
                         .truncationMode(.middle)
                         .frame(maxWidth: 120)
                 }
-
                 if kind == .terminal && index <= 9 {
                     Text("⌘\(index)")
                         .font(.system(size: 9, weight: .medium, design: .rounded))
@@ -226,16 +408,12 @@ struct TabItemView: View {
                 } : nil
             ))
 
-            // Close button — separate from tap gesture area
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundColor(.secondary)
                     .frame(width: 14, height: 14)
-                    .background(
-                        Circle()
-                            .fill(Color.primary.opacity(isHovered ? 0.1 : 0))
-                    )
+                    .background(Circle().fill(Color.primary.opacity(isHovered ? 0.1 : 0)))
             }
             .buttonStyle(.plain)
             .opacity(isHovered || isActive ? 1 : 0.3)
@@ -246,7 +424,11 @@ struct TabItemView: View {
         .contentShape(Rectangle())
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isActive ? Color.primary.opacity(0.1) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
+                .fill(
+                    isActive
+                        ? Color.primary.opacity(0.10)
+                        : (isHovered ? Color.primary.opacity(0.05) : Color.clear)
+                )
         )
         .onHover { hovering in
             isHovered = hovering
@@ -255,10 +437,8 @@ struct TabItemView: View {
     }
 }
 
-// MARK: - MouseDown handler for instant tab clicks
+// MARK: - Mouse / double-click / tab list / drag helpers
 
-/// Transparent NSView overlay that fires actions on mouseDown.
-/// Single click calls `action`, double click calls `doubleAction`.
 struct MouseDownOverlay: NSViewRepresentable {
     let action: () -> Void
     let doubleAction: (() -> Void)?
@@ -288,15 +468,9 @@ final class MouseDownNSView: NSView {
         }
     }
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        true
-    }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-// MARK: - Double-click catcher (pass-through overlay using event monitor)
-
-/// Detects double-clicks anywhere in its bounds without blocking other events.
-/// Uses a local event monitor so buttons and tabs underneath still work.
 struct DoubleClickCatcher: NSViewRepresentable {
     let action: () -> Void
 
@@ -322,15 +496,10 @@ final class DoubleClickNSView: NSView {
                 guard let self, event.clickCount >= 2 else { return event }
                 let loc = self.convert(event.locationInWindow, from: nil)
                 guard self.bounds.contains(loc) else { return event }
-                // Only fire on empty space — skip if another interactive view handles this click.
-                // Walk up the hit view hierarchy checking for known interactive types
-                // or SwiftUI gesture recognizers (installed by .onTapGesture on tab items).
                 let winLoc = event.locationInWindow
                 if let hitView = self.window?.contentView?.hitTest(winLoc) {
                     var current: NSView? = hitView
                     var depth = 0
-                    // Walk up ~20 levels — enough to find SwiftUI gesture recognizers
-                    // on tab items without reaching high-level views (e.g. dismiss gesture)
                     while let v = current, depth < 20 {
                         if v is MouseDownNSView || v is NSButton || v is NSTextField {
                             return event
@@ -358,8 +527,6 @@ final class DoubleClickNSView: NSView {
     }
 }
 
-// MARK: - Tab list popover
-
 struct TabListPopover: View {
     @ObservedObject var tabManager: TabManager
     let onDismiss: () -> Void
@@ -373,15 +540,12 @@ struct TabListPopover: View {
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
-
                     Text(tab.displayTitle)
                         .font(.system(size: 12))
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .foregroundColor(index == tabManager.activeTabIndex ? .primary : .secondary)
-
                     Spacer()
-
                     Button(action: {
                         tabManager.closeTab(id: tab.id)
                         if tabManager.tabs.count <= 1 { onDismiss() }
@@ -390,7 +554,6 @@ struct TabListPopover: View {
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(.secondary)
                             .frame(width: 16, height: 16)
-                            .background(Circle().fill(Color.primary.opacity(0.05)))
                     }
                     .buttonStyle(.plain)
                 }
@@ -411,8 +574,6 @@ struct TabListPopover: View {
         .frame(minWidth: 180)
     }
 }
-
-// MARK: - Tab drag & drop
 
 struct TabDropDelegate: DropDelegate {
     let tabManager: TabManager

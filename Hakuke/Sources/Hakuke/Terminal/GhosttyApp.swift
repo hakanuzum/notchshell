@@ -47,6 +47,8 @@ final class GhosttyApp: @unchecked Sendable {
         // (e.g. Raycast, Spotlight, Finder) this env var won't be inherited.
         if getenv("GHOSTTY_RESOURCES_DIR") == nil {
             let candidates = [
+                // Muxy ships a full Ghostty theme catalog
+                "/Applications/Muxy.app/Contents/Resources/Muxy_Muxy.bundle/ghostty",
                 "/Applications/Ghostty.app/Contents/Resources/ghostty",
                 "/opt/homebrew/share/ghostty",
                 "/usr/local/share/ghostty",
@@ -108,10 +110,14 @@ final class GhosttyApp: @unchecked Sendable {
             return true
         }
 
-        runtimeConfig.confirm_read_clipboard_cb = { _, _, state, _ in
-            // Auto-confirm clipboard reads
-            let contents = NSPasteboard.general.string(forType: .string) ?? ""
-            GhosttyApp.shared.completeClipboardRead(contents: contents, state: state)
+        runtimeConfig.confirm_read_clipboard_cb = { _, contents, state, _ in
+            // Ghostty asks for confirmation when a paste looks unsafe (multi-line
+            // text, control sequences). Auto-confirm — but the completion MUST pass
+            // confirmed=true, otherwise Ghostty re-issues this same request and we
+            // recurse until the stack overflows (SIGSEGV).
+            let text = contents.map { String(cString: $0) }
+                ?? NSPasteboard.general.string(forType: .string) ?? ""
+            GhosttyApp.shared.completeClipboardRead(contents: text, state: state, confirmed: true)
         }
 
         runtimeConfig.write_clipboard_cb = {
@@ -214,7 +220,11 @@ final class GhosttyApp: @unchecked Sendable {
         return copy
     }
 
-    private func completeClipboardRead(contents: String, state: UnsafeMutableRawPointer?) {
+    private func completeClipboardRead(
+        contents: String,
+        state: UnsafeMutableRawPointer?,
+        confirmed: Bool = false
+    ) {
         // Find the focused surface: check all windows for a GhosttyTerminalView first responder.
         let focusedSurface: ghostty_surface_t? = {
             for window in NSApp.windows {
@@ -229,7 +239,7 @@ final class GhosttyApp: @unchecked Sendable {
 
         guard let surface = focusedSurface else { return }
         contents.withCString { ptr in
-            ghostty_surface_complete_clipboard_request(surface, ptr, state, false)
+            ghostty_surface_complete_clipboard_request(surface, ptr, state, confirmed)
         }
     }
 
@@ -306,6 +316,30 @@ final class GhosttyApp: @unchecked Sendable {
             return NSString(string: "~/.config/ghostty/config").expandingTildeInPath
         }
         return String(cString: ptr)
+    }
+
+    /// Apply a Ghostty theme by name (config only) and reload all surfaces.
+    @discardableResult
+    func applyTheme(named name: String) -> Bool {
+        guard GhosttyThemeCatalog.applyTheme(named: name) else { return false }
+        reloadConfig()
+        if let parsed = GhosttyThemeCatalog.parseTerminalTheme(named: name) {
+            for backend in activeBackends.values {
+                backend.applyBackgroundColor(parsed.background)
+                if let surface = backend.surface {
+                    let isLight = parsed.background.usingColorSpace(.deviceRGB).map {
+                        (0.2126 * $0.redComponent + 0.7152 * $0.greenComponent + 0.0722 * $0.blueComponent) > 0.5
+                    } ?? false
+                    ghostty_surface_set_color_scheme(
+                        surface,
+                        isLight ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK
+                    )
+                    ghostty_surface_refresh(surface)
+                }
+            }
+        }
+        os_log(.info, log: log, "Theme applied: %{public}s", name)
+        return true
     }
 
     /// Open the Ghostty config file in the default editor.

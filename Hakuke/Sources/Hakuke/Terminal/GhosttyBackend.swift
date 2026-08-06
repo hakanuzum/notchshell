@@ -180,10 +180,10 @@ final class GhosttyBackend: NSObject, TerminalBackend {
         retainedSelf = nil
     }
 
-    // MARK: - Styling (managed by Ghostty config)
+    // MARK: - Styling
 
     func applyFont(_ font: NSFont) {
-        // Ghostty manages fonts via ~/.config/ghostty/config
+        // Fonts come from Ghostty config.
     }
 
     func applyColors(
@@ -191,7 +191,16 @@ final class GhosttyBackend: NSObject, TerminalBackend {
         cursor: NSColor, selection: NSColor,
         ansiColors: [NSColor]
     ) {
-        // Ghostty manages colors via ~/.config/ghostty/config
+        // Glyph colors come from Ghostty theme; keep underlay plate in sync.
+        applyBackgroundColor(background)
+    }
+
+    func applyBackgroundColor(_ color: NSColor) {
+        containerView.wantsLayer = true
+        containerView.layer?.isOpaque = true
+        let rgb = color.usingColorSpace(.deviceRGB) ?? color
+        containerView.layer?.backgroundColor = rgb.cgColor
+        containerView.needsDisplay = true
     }
 
     // MARK: - Search (Phase 2)

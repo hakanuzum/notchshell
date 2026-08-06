@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// The root SwiftUI view hosted inside TerminalPanel.
-/// Animation is driven explicitly by withAnimation in show()/hide().
+/// Root SwiftUI view inside TerminalPanel.
+/// Top-docked shelf: full-width under menu bar; soft chrome puts tabs on the BOTTOM.
 struct PanelContentView: View {
     @ObservedObject var tabManager: TabManager
     @ObservedObject var windowController: WindowController
 
-    // Resize preview: shows outline during drag, applies on release
     @State private var dragStartSize: CGSize = .zero
     @State private var resizePreview: CGSize? = nil
 
@@ -14,32 +13,43 @@ struct PanelContentView: View {
         windowController.state == .visible
     }
 
-    private var currentWidth: CGFloat {
+    private var isSoft: Bool {
+        PanelChrome.isSoftLight(windowController.chromeStyle)
+    }
+
+    private var fullWidth: CGFloat {
         windowController.cachedWidth > 0
             ? windowController.cachedWidth
             : windowController.terminalSize.width
     }
 
-    private var currentSize: CGSize {
-        CGSize(
-            width: currentWidth,
-            height: isVisible ? windowController.terminalSize.height : 0
-        )
+    private var fullHeight: CGFloat {
+        windowController.terminalSize.height
+    }
+
+    private var animatedHeight: CGFloat {
+        isVisible ? fullHeight : 0
     }
 
     private var menuBarHeight: CGFloat {
         let screen = windowController.resolvedScreen
         let fromFrame = screen.frame.maxY - screen.visibleFrame.maxY
-        // safeAreaInsets.top gives the menu bar / safe area height
         let safeTop = screen.safeAreaInsets.top
         return max(fromFrame, safeTop)
     }
 
-    // MARK: - Terminal content (always full size — animation only clips)
+    private var clipShape: UnevenRoundedRectangle {
+        PanelChrome.clipShape()
+    }
+
+    // MARK: - Content: terminal body + tab bar placement
 
     private var terminalContent: some View {
         VStack(spacing: 0) {
-            TabBarView(tabManager: tabManager, windowController: windowController)
+            // Soft (Unclutter): tabs BOTTOM. Dark: tabs TOP.
+            if !isSoft {
+                TabBarView(tabManager: tabManager, windowController: windowController)
+            }
 
             ZStack {
                 ForEach(tabManager.tabs) { tab in
@@ -65,12 +75,36 @@ struct PanelContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
+            .background(Color(nsColor: tabManager.theme.background))
+
+            if isSoft {
+                TabBarView(tabManager: tabManager, windowController: windowController)
+            }
         }
-        .frame(width: currentWidth, height: windowController.terminalSize.height)
+        .frame(width: fullWidth, height: fullHeight)
     }
 
-    // MARK: - Corner drag gesture (preview border, apply on release)
+    private var panelChrome: some View {
+        terminalContent
+            .frame(width: fullWidth, height: animatedHeight, alignment: .top)
+            .clipped()
+            .clipShape(clipShape)
+            .overlay(
+                clipShape.stroke(
+                    PanelChrome.border(style: windowController.chromeStyle),
+                    lineWidth: isSoft ? 0.75 : 0.5
+                )
+            )
+            .shadow(
+                color: isVisible ? PanelChrome.shadow(style: windowController.chromeStyle) : .clear,
+                radius: isSoft ? 18 : 10,
+                x: 0,
+                y: 6
+            )
+            .opacity(isVisible ? 1 : 0)
+    }
+
+    // MARK: - Resize
 
     private func cornerDragGesture(edge: HorizontalEdge) -> some Gesture {
         DragGesture(minimumDistance: 1)
@@ -93,15 +127,24 @@ struct PanelContentView: View {
                 if let preview = resizePreview {
                     windowController.updateWidthByDelta(preview.width)
                     windowController.updateHeightByDelta(preview.height)
+                    windowController.cachedWidth = windowController.terminalSize.width
                 }
                 resizePreview = nil
                 dragStartSize = .zero
             }
     }
 
+    private var horizontalInset: CGFloat {
+        let screenW = windowController.resolvedScreen.frame.width
+        return max((screenW - fullWidth) / 2, 0)
+    }
+
     var body: some View {
+        let screenW = windowController.panelWidth > 0
+            ? windowController.panelWidth
+            : windowController.resolvedScreen.frame.width
+
         ZStack(alignment: .topLeading) {
-            // Dismiss layer
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture { windowController.hide() }
@@ -111,59 +154,39 @@ struct PanelContentView: View {
                 Color.clear.frame(height: menuBarHeight)
 
                 ZStack(alignment: .top) {
-                    // Terminal always at full size, clipped by animated container.
-                    // This prevents SIGWINCH on every animation frame.
-                    terminalContent
-                        .frame(height: currentSize.height, alignment: .top)
-                        .clipped()
-                        .clipShape(UnevenRoundedRectangle(
-                            topLeadingRadius: 0, bottomLeadingRadius: 12,
-                            bottomTrailingRadius: 12, topTrailingRadius: 0
-                        ))
-                        .overlay(
-                            UnevenRoundedRectangle(
-                                topLeadingRadius: 0, bottomLeadingRadius: 12,
-                                bottomTrailingRadius: 12, topTrailingRadius: 0
-                            )
-                            .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
-                        )
-                        .opacity(isVisible ? 1 : 0)
-
-                    // Resize preview border (shown during drag)
-                    if let preview = resizePreview, isVisible {
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 0, bottomLeadingRadius: 12,
-                            bottomTrailingRadius: 12, topTrailingRadius: 0
-                        )
-                        .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                        .frame(width: preview.width, height: preview.height)
+                    // Center full-width (or % width) shelf under menu bar
+                    HStack {
+                        Spacer(minLength: 0)
+                        panelChrome
+                        Spacer(minLength: 0)
                     }
 
-                    // Corner resize handles (overlaid at bottom corners)
+                    if let preview = resizePreview, isVisible {
+                        clipShape
+                            .stroke(Color.primary.opacity(0.25), lineWidth: 2)
+                            .frame(width: preview.width, height: preview.height)
+                    }
+
                     if isVisible {
                         VStack {
                             Spacer()
-                                .frame(height: currentSize.height - 16)
+                                .frame(height: animatedHeight - 16)
                             HStack {
-                                // Bottom-left corner
                                 CornerResizeHandle(edge: .left)
                                     .gesture(cornerDragGesture(edge: .left))
-                                    .padding(.leading, (windowController.resolvedScreen.frame.width - currentSize.width) / 2)
-
+                                    .padding(.leading, horizontalInset)
                                 Spacer()
-
-                                // Bottom-right corner
                                 CornerResizeHandle(edge: .right)
                                     .gesture(cornerDragGesture(edge: .right))
-                                    .padding(.trailing, (windowController.resolvedScreen.frame.width - currentSize.width) / 2)
+                                    .padding(.trailing, horizontalInset)
                             }
                         }
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
             }
-            .frame(width: windowController.panelWidth > 0 ? windowController.panelWidth : nil)
+            .frame(width: screenW)
         }
     }
 }
@@ -181,10 +204,8 @@ struct CornerResizeHandle: View {
             .contentShape(Rectangle())
             .onContinuousHover { phase in
                 switch phase {
-                case .active:
-                    NSCursor.crosshair.push()
-                case .ended:
-                    NSCursor.pop()
+                case .active: NSCursor.crosshair.push()
+                case .ended: NSCursor.pop()
                 }
             }
     }

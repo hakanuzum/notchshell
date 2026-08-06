@@ -20,6 +20,12 @@ struct SettingsView: View {
     @State private var customShellPath: String = ""
     @State private var isCustomShell: Bool = false
     @State private var shellTestResult: ShellTestResult?
+    @State private var themeNames: [String] = GhosttyThemeCatalog.availableThemes()
+    @State private var selectedTheme: String = GhosttyThemeCatalog.currentThemeName()
+        ?? UserDefaults.standard.string(forKey: "selectedGhosttyTheme")
+        ?? "Catppuccin Mocha"
+    @State private var themeFilter: String = ""
+    @State private var themeApplyMessage: String?
     @FocusState private var shellFieldFocused: Bool
 
     private enum ShellTestResult {
@@ -196,10 +202,70 @@ struct SettingsView: View {
                     .padding(8)
                 }
 
-                GroupBox("Terminal Appearance") {
+                GroupBox("Panel Chrome") {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Fonts, colors, opacity and themes are configured via Ghostty config.")
+                        Picker("Chrome:", selection: Binding(
+                            get: { windowController.chromeStyle },
+                            set: { windowController.setChromeStyle($0) }
+                        )) {
+                            ForEach(PanelChromeStyle.allCases) { style in
+                                Text(style.displayName).tag(style)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        Text("Light = Unclutter-style bottom tabs. Dark = classic top tab bar.")
                             .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(8)
+                }
+
+                GroupBox("Terminal Theme") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ghostty themes (Muxy catalog). Palette button on the tab bar is the fast path.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        TextField("Filter themes…", text: $themeFilter)
+                            .textFieldStyle(.roundedBorder)
+
+                        let filtered = themeNames.filter {
+                            themeFilter.isEmpty || $0.localizedCaseInsensitiveContains(themeFilter)
+                        }
+
+                        Picker("Theme", selection: $selectedTheme) {
+                            ForEach(filtered, id: \.self) { name in
+                                Text(name).tag(name)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        HStack(spacing: 10) {
+                            Button("Apply Theme") {
+                                let ok = windowController.applyGhosttyTheme(named: selectedTheme)
+                                themeApplyMessage = ok
+                                    ? "Applied “\(selectedTheme)”."
+                                    : "Theme not found."
+                            }
+                            .buttonStyle(.borderedProminent)
+
+                            Button("Refresh List") {
+                                themeNames = GhosttyThemeCatalog.availableThemes()
+                                themeApplyMessage = "\(themeNames.count) themes"
+                            }
+                            .buttonStyle(.bordered)
+
+                            Spacer()
+                        }
+
+                        if let themeApplyMessage {
+                            Text(themeApplyMessage)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Text("\(themeNames.count) themes · also available from the palette button on the tab bar")
+                            .font(.caption2)
                             .foregroundColor(.secondary)
 
                         HStack(spacing: 12) {
@@ -217,6 +283,12 @@ struct SettingsView: View {
                         }
                     }
                     .padding(8)
+                    .onAppear {
+                        themeNames = GhosttyThemeCatalog.availableThemes()
+                        if let current = GhosttyThemeCatalog.currentThemeName() {
+                            selectedTheme = current
+                        }
+                    }
                 }
 
                 GroupBox("Keyboard") {
@@ -361,8 +433,8 @@ struct SettingsView: View {
             .padding(24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .preferredColorScheme(.dark)
+        .background(PanelChrome.contentBackground(style: windowController.chromeStyle))
+        .preferredColorScheme(PanelChrome.colorScheme(style: windowController.chromeStyle))
     }
 
     private func testAndApplyShell() {

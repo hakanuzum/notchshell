@@ -4,6 +4,7 @@
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source "$(dirname "$0")/_toolchain.sh"
 
 # Build once
 echo "=== Building tests ==="

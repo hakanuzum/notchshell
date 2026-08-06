@@ -12,6 +12,7 @@ BINARY="$APP_BUNDLE/Contents/MacOS/Hakuke"
 SIGNING_IDENTITY="Developer ID Application: <your identity>"
 
 cd "$PROJECT_ROOT"
+source "$SCRIPT_DIR/_toolchain.sh"
 
 ARCH="${1:---arch arm64}"
 if [ "$ARCH" = "--universal" ]; then

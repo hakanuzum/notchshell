@@ -15,9 +15,11 @@ final class WindowController: ObservableObject {
     @Published var state: PanelState = .hidden
     @Published var isPinned: Bool = false
     @Published var displayID: Int = 0
-    @Published var widthPercent: Int = 75
-    @Published var heightPercent: Int = 50
+    /// Full menu-bar width by default (Unclutter shelf).
+    @Published var widthPercent: Int = 100
+    @Published var heightPercent: Int = 45
     @Published var panelWidth: CGFloat = 0
+    @Published var chromeStyle: PanelChromeStyle = .unclutter
 
     private var previousApp: NSRunningApplication?
     private var resignObserver: Any?
@@ -30,15 +32,18 @@ final class WindowController: ObservableObject {
 
     // Debounce: ignore resign/appSwitch hide triggers briefly after show()
     private var showTimestamp: Date = .distantPast
+    /// Theme popover lives in another window — suppress auto-hide while open / applying.
+    private var suppressAutoHideUntil: Date = .distantPast
 
     // Scroll wheel state for tab switching
     private var scrollAccumulator: CGFloat = 0
     private var lastScrollTime: Date = .distantPast
 
     // Persisted
-    @AppStorage("terminalWidthPercent") private var savedWidthPercent: Int = 75
-    @AppStorage("terminalHeightPercent") private var savedHeightPercent: Int = 50
+    @AppStorage("terminalWidthPercent") private var savedWidthPercent: Int = 100
+    @AppStorage("terminalHeightPercent") private var savedHeightPercent: Int = 45
     @AppStorage("selectedDisplayID") private var savedDisplayID: Int = 0
+    @AppStorage("panelChromeStyle") private var savedChromeStyle: String = PanelChromeStyle.unclutter.rawValue
 
     // MARK: - Sizes
 
@@ -67,6 +72,12 @@ final class WindowController: ObservableObject {
         self.displayID = savedDisplayID
         self.widthPercent = savedWidthPercent
         self.heightPercent = savedHeightPercent
+        self.chromeStyle = PanelChromeStyle(rawValue: savedChromeStyle) ?? .unclutter
+        // Prefer full-width Unclutter shelf
+        if widthPercent < 90 {
+            widthPercent = 100
+            savedWidthPercent = 100
+        }
 
         setupContentView()
         setupObservers()
@@ -138,10 +149,8 @@ final class WindowController: ObservableObject {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                guard Date().timeIntervalSince(self.showTimestamp) > 0.3 else { return }
-                if self.state == .visible && !self.isPinned {
-                    self.hide()
-                }
+                guard self.shouldAutoHide() else { return }
+                self.hide()
             }
         }
 
@@ -153,11 +162,9 @@ final class WindowController: ObservableObject {
             guard let self else { return }
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             Task { @MainActor in
-                guard Date().timeIntervalSince(self.showTimestamp) > 0.3 else { return }
-                if app.bundleIdentifier != Bundle.main.bundleIdentifier,
-                   self.state == .visible {
+                guard self.shouldAutoHide() else { return }
+                if app.bundleIdentifier != Bundle.main.bundleIdentifier {
                     if self.isPinned {
-                        // Pinned: stay visible but release keyboard focus
                         self.panel.resignKey()
                     } else {
                         self.hide()
@@ -320,11 +327,55 @@ final class WindowController: ObservableObject {
     private func setupClickMonitor() {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self else { return }
+            let mouse = NSEvent.mouseLocation
             Task { @MainActor in
-                if self.state == .visible && !self.isPinned {
-                    self.hide()
+                guard self.shouldAutoHide() else { return }
+                // Theme popover is a separate window — don't hide when clicking it.
+                if NSApp.windows.contains(where: { $0.isVisible && $0.frame.contains(mouse) }) {
+                    return
                 }
+                self.hide()
             }
+        }
+    }
+
+    @MainActor
+    func shouldAutoHide() -> Bool {
+        guard state == .visible, !isPinned else { return false }
+        guard Date().timeIntervalSince(showTimestamp) > 0.3 else { return false }
+        guard Date() >= suppressAutoHideUntil else { return false }
+        return true
+    }
+
+    @MainActor
+    func beginTransientInteraction(seconds: TimeInterval = 2.0) {
+        suppressAutoHideUntil = Date().addingTimeInterval(seconds)
+        showTimestamp = Date()
+    }
+
+    /// Apply Ghostty theme only (does not rewrite starship/zsh).
+    @discardableResult
+    func applyGhosttyTheme(named name: String) -> Bool {
+        beginTransientInteraction(seconds: 3.0)
+        let ok = GhosttyApp.shared.applyTheme(named: name)
+        if let parsed = GhosttyThemeCatalog.parseTerminalTheme(named: name) {
+            tabManager.theme = parsed
+            tabManager.objectWillChange.send()
+        }
+        if state == .visible {
+            panel.ignoresMouseEvents = false
+            panel.makeKeyAndOrderFront(nil)
+            tabManager.focusTerminalInActiveTab()
+        }
+        beginTransientInteraction(seconds: 1.0)
+        return ok
+    }
+
+    func setChromeStyle(_ style: PanelChromeStyle) {
+        chromeStyle = style
+        savedChromeStyle = style.rawValue
+        if style.resolved == .unclutter, widthPercent < 90 {
+            setWidthPercent(100)
         }
     }
 

@@ -152,8 +152,7 @@ struct HelpView: View {
             .padding(24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .preferredColorScheme(.dark)
+        .background(PanelChrome.contentBackground(style: .unclutter))
     }
 
     private static let ghosttyConfigSnippet = """
