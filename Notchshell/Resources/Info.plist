@@ -27,7 +27,7 @@
 	<key>CFBundleName</key>
 	<string>Notchshell</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.2</string>
+	<string>0.3.3</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -40,7 +40,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
@@ -108,6 +108,6 @@
 	<key>SUFeedURL</key>
 	<string>https://github.com/hakanuzum/notchshell/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>DO/Ypd5E8hupynUNtIqqxZCs0CNEfeWoKX8ielcAfTM=</string>
+	<string>sGDfaPAMoGD6kRXBEJvPoqLujBu+a58L5X+/blOHrGM=</string>
 </dict>
 </plist>
