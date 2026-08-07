@@ -166,6 +166,25 @@ final class GhosttyTerminalView: NSView {
     override func keyDown(with event: NSEvent) {
         guard let surface = backend?.surface else { return }
 
+        // Delete with a selection removes the whole selection: one backspace per selected
+        // character. A terminal has no editable region the way an editor does, so this is
+        // best-effort — the backspaces delete from the shell's cursor, which for the
+        // common case (a trailing selection on the command line, cursor at the end) is
+        // exactly what was highlighted. Only plain Delete; ⌥/⌘-Delete keep their
+        // word/line meanings.
+        let editingMods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if event.keyCode == 51, editingMods.isEmpty, ghostty_surface_has_selection(surface) {
+            var text = ghostty_text_s()
+            if ghostty_surface_read_selection(surface, &text), let ptr = text.text, text.text_len > 0 {
+                let count = String(cString: ptr).count
+                ghostty_surface_free_text(surface, &text)
+                for _ in 0..<count {
+                    backend?.sendKeyPress(keyCode: 51, text: "\u{7F}")
+                }
+                return
+            }
+        }
+
         // Path 1: Non-printable keys (backspace, arrows, tab, escape, return, F-keys)
         // Bypass interpretKeyEvents to avoid NSBeep on rapid input.
         if markedTextStorage.length == 0 {
