@@ -8,6 +8,59 @@ extension KeyboardShortcuts.Name {
     static let previousTab = Self("previousTab", default: .init(.leftBracket, modifiers: [.command, .shift]))
 }
 
+/// Collects the widest measured label width among a set of sibling buttons, so they can
+/// all adopt it. See `SettingsView.advancedButton`.
+private struct ButtonWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// A segmented control whose segments stretch to fill the width it is given.
+///
+/// SwiftUI's `.pickerStyle(.segmented)` sizes to its option labels and cannot be made to
+/// fill — a fixed frame is ignored and `maxWidth: .infinity` only centres it — so two
+/// controls with different option counts never share an edge. `NSSegmentedControl` with
+/// `segmentDistribution = .fillEqually` does fill, and low hugging lets SwiftUI's frame
+/// drive its width, so a column of these all reach the same right edge.
+private struct FillingSegmentedControl<Tag: Hashable>: NSViewRepresentable {
+    let options: [(label: String, tag: Tag)]
+    @Binding var selection: Tag
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let control = NSSegmentedControl(
+            labels: options.map(\.label),
+            trackingMode: .selectOne,
+            target: context.coordinator,
+            action: #selector(Coordinator.selectionChanged(_:)))
+        control.segmentStyle = .rounded
+        control.segmentDistribution = .fillEqually
+        control.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return control
+    }
+
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        context.coordinator.parent = self
+        if let index = options.firstIndex(where: { $0.tag == selection }) {
+            control.selectedSegment = index
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject {
+        var parent: FillingSegmentedControl
+        init(_ parent: FillingSegmentedControl) { self.parent = parent }
+        @objc func selectionChanged(_ sender: NSSegmentedControl) {
+            let index = sender.selectedSegment
+            guard parent.options.indices.contains(index) else { return }
+            parent.selection = parent.options[index].tag
+        }
+    }
+}
+
 /// Everything you can change at a glance: toggles and pickers, nothing that needs
 /// reading first.
 ///
@@ -37,6 +90,9 @@ struct SettingsView: View {
     @State private var isCustomShell: Bool = false
     @State private var customShellProblem: String?
     @FocusState private var shellFieldFocused: Bool
+
+    /// Width of the widest Advanced button label, so they all match it. See advancedButton.
+    @State private var advancedButtonWidth: CGFloat = 0
 
     @StateObject private var themeCatalog = ThemeCatalogStore()
     @State private var followsAppearance: Bool =
@@ -131,25 +187,15 @@ struct SettingsView: View {
                 apply(.fontFamily, fontFamily.isEmpty ? nil : fontFamily)
             }
 
-            segmentedRow("Cursor") {
-                Picker("Cursor", selection: $cursorStyle) {
-                    ForEach(TerminalAppearanceSettings.cursorStyles, id: \.self) { style in
-                        Text(style.capitalized).tag(style)
-                    }
-                }
+            segmentedRow("Cursor", selection: $cursorStyle,
+                         TerminalAppearanceSettings.cursorStyles.map { ($0.capitalized, $0) })
                 .onChange(of: cursorStyle) { apply(.cursorStyle, cursorStyle) }
-            }
 
-            segmentedRow("Blur") {
-                Picker("Blur", selection: $blurRadius) {
-                    ForEach(Self.blurChoices, id: \.value) { choice in
-                        Text(choice.label).tag(choice.value)
-                    }
-                }
+            segmentedRow("Blur", selection: $blurRadius,
+                         Self.blurChoices.map { ($0.label, $0.value) })
                 .onChange(of: blurRadius) {
                     apply(.backgroundBlurRadius, blurRadius == 0 ? nil : String(blurRadius))
                 }
-            }
 
             // The palette button sets one theme. Only a pair needs this.
             Toggle("Separate light and dark themes", isOn: $followsAppearance)
@@ -256,27 +302,17 @@ struct SettingsView: View {
 
     private var panel: some View {
         Section {
-            segmentedRow("Chrome") {
-                Picker("Chrome", selection: Binding(
-                    get: { windowController.chromeStyle },
-                    set: { windowController.setChromeStyle($0) }
-                )) {
-                    ForEach(PanelChromeStyle.allCases) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
-            }
+            segmentedRow("Chrome", selection: Binding(
+                get: { windowController.chromeStyle },
+                set: { windowController.setChromeStyle($0) }
+            ), PanelChromeStyle.allCases.map { ($0.displayName, $0) })
 
-            segmentedRow("Width") {
-                Picker("Width", selection: Binding(
-                    get: { Self.widthChoices.min(by: {
-                        abs($0 - windowController.widthPercent) < abs($1 - windowController.widthPercent)
-                    }) ?? 100 },
-                    set: { windowController.setWidthPercent($0) }
-                )) {
-                    ForEach(Self.widthChoices, id: \.self) { Text("\($0)%").tag($0) }
-                }
-            }
+            segmentedRow("Width", selection: Binding(
+                get: { Self.widthChoices.min(by: {
+                    abs($0 - windowController.widthPercent) < abs($1 - windowController.widthPercent)
+                }) ?? 100 },
+                set: { windowController.setWidthPercent($0) }
+            ), Self.widthChoices.map { ("\($0)%", $0) })
 
             Picker("Screen", selection: Binding(
                 get: { windowController.displayID },
@@ -312,21 +348,11 @@ struct SettingsView: View {
 
     private var api: some View {
         Section {
-            segmentedRow("Socket") {
-                Picker("Socket", selection: $apiAccess) {
-                    Text("Enabled").tag("enabled")
-                    Text("Ask first").tag("ask")
-                    Text("Disabled").tag("disabled")
-                }
-            }
+            segmentedRow("Socket", selection: $apiAccess,
+                         [("Enabled", "enabled"), ("Ask first", "ask"), ("Disabled", "disabled")])
 
-            segmentedRow("MCP") {
-                Picker("MCP", selection: $mcpAccess) {
-                    Text("Enabled").tag("enabled")
-                    Text("Ask first").tag("ask")
-                    Text("Disabled").tag("disabled")
-                }
-            }
+            segmentedRow("MCP", selection: $mcpAccess,
+                         [("Enabled", "enabled"), ("Ask first", "ask"), ("Disabled", "disabled")])
         } header: {
             Text("API")
         } footer: {
@@ -339,26 +365,57 @@ struct SettingsView: View {
 
     private var advanced: some View {
         Section {
-            // Full-width buttons so their edges align with the segmented controls and
-            // pickers above rather than each sitting at its own natural width.
-            Button("Open Config") { GhosttyApp.shared.openConfig() }
-                .frame(maxWidth: .infinity)
-            Button("Reload Config") { GhosttyApp.shared.reloadConfig() }
-                .frame(maxWidth: .infinity)
-            Button("Check for Updates…") { SparkleUpdater.shared.checkForUpdates() }
-                .frame(maxWidth: .infinity)
-                .disabled(!SparkleUpdater.shared.canCheckForUpdates)
-            Button(role: .destructive) {
-                NSApplication.shared.terminate(nil)
-            } label: {
-                Label("Quit \(AppIdentity.displayName)", systemImage: "power")
-                    .frame(maxWidth: .infinity)
+            // Left-aligned, and every button as wide as the widest so they form a tidy
+            // column — not stretched full width, which centres the label and looks off,
+            // and not each at its own width, which reads as ragged. The width is measured
+            // from the longest label (see advancedButton / ButtonWidthKey) rather than
+            // guessed, so it stays right if the text changes.
+            VStack(alignment: .leading, spacing: 8) {
+                advancedButton("Open Config") { GhosttyApp.shared.openConfig() }
+                advancedButton("Reload Config") { GhosttyApp.shared.reloadConfig() }
+                advancedButton("Check for Updates…") { SparkleUpdater.shared.checkForUpdates() }
+                    .disabled(!SparkleUpdater.shared.canCheckForUpdates)
+                advancedButton("Quit \(AppIdentity.displayName)",
+                               role: .destructive, systemImage: "power") {
+                    NSApplication.shared.terminate(nil)
+                }
             }
+            .onPreferenceChange(ButtonWidthKey.self) { advancedButtonWidth = $0 }
         } header: {
             Text("Advanced")
         } footer: {
             Text("Command line tool, Finder services and the shell colour check are in Help.")
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// A button in the Advanced column, sized to the widest sibling. Each measures its
+    /// own label's natural width through a hidden copy and publishes it up ButtonWidthKey;
+    /// the section takes the maximum and hands it back as `advancedButtonWidth`, which
+    /// every button then adopts. Measuring a hidden `.fixedSize()` copy rather than the
+    /// framed label keeps the constraint from feeding back into the measurement.
+    private func advancedButton(_ title: String,
+                                role: ButtonRole? = nil,
+                                systemImage: String? = nil,
+                                action: @escaping () -> Void) -> some View {
+        Button(role: role, action: action) {
+            HStack(spacing: 6) {
+                if let systemImage { Image(systemName: systemImage) }
+                Text(title)
+                Spacer(minLength: 0)
+            }
+            .frame(width: advancedButtonWidth > 0 ? advancedButtonWidth : nil, alignment: .leading)
+            .background(
+                HStack(spacing: 6) {
+                    if let systemImage { Image(systemName: systemImage) }
+                    Text(title)
+                }
+                .fixedSize()
+                .hidden()
+                .background(GeometryReader { geo in
+                    Color.clear.preference(key: ButtonWidthKey.self, value: geo.size.width)
+                })
+            )
         }
     }
 
@@ -384,23 +441,19 @@ struct SettingsView: View {
 
     // MARK: - Row builders
 
-    /// A segmented control that spans the whole row rather than hugging its options.
-    /// Left inline, a two-option control and a four-option one end at different places
-    /// and their edges never line up; here the label sits above and the control fills
-    /// the width, so Cursor, Blur, Chrome, Width and the rest share one left and one
-    /// right edge straight down the column.
-    private func segmentedRow<Content: View>(_ title: String,
-                                             @ViewBuilder _ picker: () -> Content) -> some View {
+    /// A titled segmented control that fills the row width, its segments stretched
+    /// equally. Label above, control below at full width — so Cursor, Blur, Chrome,
+    /// Width and the rest all reach the same right edge instead of each ending wherever
+    /// its options happen to. Backed by FillingSegmentedControl because the SwiftUI
+    /// segmented style cannot be made to fill.
+    private func segmentedRow<Tag: Hashable>(_ title: String,
+                                             selection: Binding<Tag>,
+                                             _ options: [(label: String, tag: Tag)]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-            picker()
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                // Leading, not centred: a macOS segmented control sizes to its options
-                // and cannot stretch its segments to fill, so full width would just
-                // centre it and leave the edges ragged. Pinned left, every control in
-                // the column starts on the same line — the clean edge is the left one.
-                .frame(maxWidth: .infinity, alignment: .leading)
+            FillingSegmentedControl(options: options, selection: selection)
+                .frame(maxWidth: .infinity)
+                .frame(height: 22)
         }
     }
 

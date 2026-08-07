@@ -237,7 +237,11 @@ struct TabBarView: View {
                 .buttonStyle(.plain)
                 .help("Settings")
             }
-            .frame(height: tabHeight)
+            // Full bar height, not tabHeight: the tabs are top-aligned so they join the
+            // terminal, but these icons are plain controls and should sit centred in the
+            // whole bar. At tabHeight they centred only in the top strip and read as
+            // nudged up, with the bar's bottom margin empty beneath them.
+            .frame(height: barHeight)
             .padding(.trailing, 10)
         }
         // `alignment: .top` is load-bearing. Without it `.frame` centres the tab row in
