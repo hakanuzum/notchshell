@@ -75,6 +75,47 @@
 		</dict>
 	</array>
 
+	<!-- macOS attributes a child process's permission request to the app that spawned
+	     it, and takes the prompt text from here. Without a key the request is denied
+	     outright with no prompt and no error the user can act on — `python -c
+	     "import Contacts"` simply fails. A terminal cannot know what will be run in
+	     it, so it declares everything a process might reasonably ask for, and the
+	     wording says who is really asking. -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>A process running in the terminal would like to use AppleScript.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>A process running in the terminal would like to use Bluetooth.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>A process running in the terminal would like to access your calendar.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>A process running in the terminal would like to use the camera.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>A process running in the terminal would like to access your contacts.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>A process running in the terminal would like to access your Desktop folder.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>A process running in the terminal would like to access your Documents folder.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>A process running in the terminal would like to access your Downloads folder.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>A process running in the terminal would like to access the local network.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>A process running in the terminal would like to access your location.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>A process running in the terminal would like to use the microphone.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>A process running in the terminal would like to access motion data.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>A process running in the terminal would like to access your photo library.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>A process running in the terminal would like to access your reminders.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>A process running in the terminal would like to access a removable volume.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>A process running in the terminal would like to use speech recognition.</string>
+	<key>NSSystemAdministrationUsageDescription</key>
+	<string>A process running in the terminal requires elevated privileges.</string>
+
 	<key>SUFeedURL</key>
 	<string>https://github.com/hakanuzum/notchshell/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
