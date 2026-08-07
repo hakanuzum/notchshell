@@ -4,7 +4,7 @@ Ghostty-format color schemes vendored from
 [mbadolato/iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)
 (MIT — see `LICENSE`).
 
-Hakuke ships these so the theme picker works on a clean machine, with no
+Notchshell ships these so the theme picker works on a clean machine, with no
 dependency on Ghostty.app, Homebrew or any other terminal being installed.
 User themes in `~/.config/ghostty/themes` take precedence over these.
 

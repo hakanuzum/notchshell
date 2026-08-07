@@ -1,21 +1,55 @@
+# Build output
 .build/
 build/
+dist/
+DerivedData/
+*.o
+*.dSYM/
+*.xcresult/
+# make-icon.swift assembles one of these and deletes it again; a failed run leaves it.
+*.iconset/
+
+# Release artifacts. The DMG is published to a GitHub release, not carried in the tree.
+*.dmg
+*.zip
+*.pkg
+
+# Xcode / SwiftPM local state
 .swiftpm/
 *.xcodeproj/
+*.xcworkspace/
 xcuserdata/
-DerivedData/
-.DS_Store
-*.o
-*.dSYM
-work_in_progress/
-work_history/
-.ghostty-build-sha
+*.xcuserstate
+*.xcscmblueprint
+
+# libghostty is built from the submodule into these; they are outputs, not sources.
 vendor/ghostty/macos/
 vendor/ghostty/zig-out/
 vendor/ghostty/.zig-cache/
-.claude/
-*.xcuserstate
+.ghostty-build-sha
+
+# Signing material and secrets. Never commit any of this.
 .env
+.env.*
 *.key
+*.pem
 *.p12
 *.p8
+*.cer
+*.certSigningRequest
+*.provisionprofile
+*.mobileprovision
+
+# Editor and tooling state
+.claude/
+.vscode/
+.idea/
+*.swp
+
+# Scratch space kept out of the history
+work_in_progress/
+work_history/
+*.log
+
+# macOS
+.DS_Store

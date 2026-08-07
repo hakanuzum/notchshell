@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import GhosttyKit
 
-/// Unix domain socket server for external control (sideshell-compatible API).
+/// Unix domain socket server for external control. See API.md for the wire format.
 /// Listens on AppIdentity.controlSocketPath, accepts JSON requests, returns JSON responses.
 /// Uses a serial queue to process requests one at a time, preventing race conditions.
 final class ControlServer {
@@ -65,7 +65,7 @@ final class ControlServer {
             return
         }
 
-        // Owner-only access (sideshell runs as same user)
+        // Owner-only access: a client runs as the same user.
         chmod(socketPath, 0o700)
 
         listen(serverSocket, 5)

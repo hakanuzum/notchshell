@@ -1,13 +1,13 @@
-# hakuke Control API
+# Notchshell Control API
 
-Unix domain socket server at `/tmp/hakuke.sock`. Send JSON, receive JSON.
+Unix domain socket server at `/tmp/notchshell.sock`. Send JSON, receive JSON.
 
 ## Protocol
 
 Connect to the socket, send a single JSON object with an `"action"` field, read the response. Each response has `"ok": true/false`. On error: `"error": "message"`.
 
 ```bash
-echo '{"action":"state"}' | nc -U /tmp/hakuke.sock
+echo '{"action":"state"}' | nc -U /tmp/notchshell.sock
 ```
 
 ## Actions
