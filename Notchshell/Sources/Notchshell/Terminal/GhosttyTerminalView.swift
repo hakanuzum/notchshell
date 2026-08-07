@@ -28,7 +28,9 @@ final class GhosttyTerminalView: NSView {
     // MARK: - Responder
 
     override var acceptsFirstResponder: Bool { true }
-    override var isOpaque: Bool { true }
+    /// Claiming opacity lets AppKit skip whatever is behind this view — which is the
+    /// right call until the user asks for a translucent background, and fatal after.
+    override var isOpaque: Bool { !TerminalAppearanceSettings.isTranslucent }
 
     override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()

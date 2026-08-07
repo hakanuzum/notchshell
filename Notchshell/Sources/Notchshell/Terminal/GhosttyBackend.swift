@@ -208,10 +208,16 @@ final class GhosttyBackend: NSObject, TerminalBackend {
 
     func applyBackgroundColor(_ color: NSColor) {
         containerView.wantsLayer = true
-        containerView.layer?.isOpaque = true
+        // The opaque black container exists to stop transparent pixels from the Ghostty
+        // renderer bleeding through. When the user asks for a translucent background
+        // those pixels are the point, so it has to step aside — and it is the only
+        // thing behind the surface, so nothing else needs to change to let light in.
+        let translucent = TerminalAppearanceSettings.isTranslucent
+        containerView.layer?.isOpaque = !translucent
         let rgb = color.usingColorSpace(.deviceRGB) ?? color
-        containerView.layer?.backgroundColor = rgb.cgColor
+        containerView.layer?.backgroundColor = translucent ? NSColor.clear.cgColor : rgb.cgColor
         containerView.needsDisplay = true
+        surfaceView.needsDisplay = true
     }
 
     // MARK: - Search (Phase 2)

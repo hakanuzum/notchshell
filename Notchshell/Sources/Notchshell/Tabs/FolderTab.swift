@@ -84,6 +84,9 @@ struct FolderTab: View {
     let isActive: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
+    /// Middle-click-to-close is driven from a window-level monitor, which needs to know
+    /// which tab the pointer is over.
+    var onHover: (Bool) -> Void = { _ in }
 
     /// Tab height. The bar is as tall as the menu bar, which differs per display, so
     /// this is passed in rather than fixed.
@@ -113,12 +116,11 @@ struct FolderTab: View {
                 .frame(maxWidth: 120)
             // Reserve the slot rather than inserting on hover: a tab that changes
             // width under the pointer shifts every tab after it.
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 8, weight: .bold))
-                    .frame(width: 12, height: 12)
-            }
-            .buttonStyle(.plain)
+            TrafficLightClose(
+                isTabHovered: isHovered,
+                isTabActive: isActive,
+                action: onClose
+            )
             .opacity(isHovered || isActive ? 1 : 0)
             .allowsHitTesting(isHovered || isActive)
         }
@@ -134,7 +136,10 @@ struct FolderTab: View {
         )
         .contentShape(shape)
         .onTapGesture(perform: onSelect)
-        .onHover { isHovered = $0 }
+        .onHover { hovering in
+            isHovered = hovering
+            onHover(hovering)
+        }
     }
 
     private var fill: LinearGradient {

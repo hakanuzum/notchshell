@@ -42,6 +42,19 @@ struct PanelContentView: View {
         PanelChrome.clipShape()
     }
 
+    /// Behind a terminal. Ghostty already paints the background at the requested alpha,
+    /// so painting it again here would stack a second opaque copy underneath and cancel
+    /// the transparency out.
+    private var bodyBackground: Color {
+        TerminalAppearanceSettings.isTranslucent
+            ? Color.clear
+            : Color(nsColor: tabManager.theme.background)
+    }
+
+    private var opaqueBodyBackground: Color {
+        Color(nsColor: tabManager.theme.background)
+    }
+
     // MARK: - Content: terminal body + tab bar placement
 
     private var terminalContent: some View {
@@ -69,13 +82,16 @@ struct PanelContentView: View {
                             HelpView()
                         }
                     }
+                    // Settings and Help are ordinary views with no background of their
+                    // own, so they carry the terminal's — and they must stay opaque
+                    // even when the terminal is not, or the text sits on the desktop.
+                    .background(tab.kind == .terminal ? bodyBackground : opaqueBodyBackground)
                     .zIndex(tab.id == tabManager.activeTab?.id ? 1 : 0)
                     .offset(x: tab.id == tabManager.activeTab?.id ? 0 : 99999)
                     .allowsHitTesting(tab.id == tabManager.activeTab?.id)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: tabManager.theme.background))
 
             if isSoft {
                 TabBarView(tabManager: tabManager, windowController: windowController)

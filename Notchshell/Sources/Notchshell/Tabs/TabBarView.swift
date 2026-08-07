@@ -8,6 +8,22 @@ struct TabBarView: View {
     @State private var showThemePicker = false
     @State private var tabsOverflow = false
     @State private var draggedTabID: String?
+    @State private var showOpacitySlider = false
+    @State private var showFontSizeSlider = false
+    @State private var opacity = TerminalAppearanceSettings.backgroundOpacity
+    @State private var fontSize = TerminalAppearanceSettings.fontSize
+    @State private var lastLiveApply = Date.distantPast
+
+    /// Write a setting while the slider is moving.
+    ///
+    /// Each apply rewrites `overrides.conf` and reparses the whole config, which is far
+    /// more than a drag frame needs. Throttle the live ones and always take the release,
+    /// so the value that lands in the file is the value under the pointer.
+    private func applyLive(_ setting: TerminalSetting, _ text: String, committed: Bool) {
+        guard committed || Date().timeIntervalSince(lastLiveApply) > 0.1 else { return }
+        lastLiveApply = Date()
+        GhosttyApp.shared.apply(setting, to: text)
+    }
 
     private var chrome: PanelChromeStyle {
         windowController.chromeStyle
@@ -60,6 +76,9 @@ struct TabBarView: View {
                             isActive: index == tabManager.activeTabIndex,
                             onSelect: { tabManager.selectTab(at: index) },
                             onClose: { tabManager.closeTab(id: tab.id) },
+                            onHover: { hovered in
+                                tabManager.hoveredTabIndex = hovered ? index : nil
+                            },
                             height: tabHeight
                         )
                         // The active tab overlaps both neighbours; the rest stack
@@ -69,7 +88,32 @@ struct TabBarView: View {
                                 ? Double(tabManager.tabs.count + 1)
                                 : Double(tabManager.tabs.count - index)
                         )
+                        .opacity(draggedTabID == tab.id ? 0.4 : 1.0)
+                        .onDrag {
+                            draggedTabID = tab.id
+                            return NSItemProvider(object: tab.id as NSString)
+                        }
+                        .onDrop(of: [.text], delegate: TabDropDelegate(
+                            tabManager: tabManager,
+                            targetTabID: tab.id,
+                            draggedTabID: $draggedTabID
+                        ))
                     }
+
+                    // New tab sits where the tabs end, not across the bar with the
+                    // settings icons — it belongs to the row it extends.
+                    Button(action: { tabManager.addTab() }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(FolderTabPalette.barIcon)
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("New Tab")
+                    // Clear the last tab's trailing diagonal before starting.
+                    .padding(.leading, FolderTab.slant + 4)
+                    .zIndex(0)
                 }
                 .padding(.leading, 8)
                 .padding(.trailing, FolderTab.slant)
@@ -116,7 +160,67 @@ struct TabBarView: View {
                     }
                 }
 
-                softIcon("plus", help: "New Tab") { tabManager.addTab() }
+                // Opacity — the icon is the overlapping-discs mark that means exactly
+                // this, and the striped half is what a translucent surface looks like.
+                Button(action: { showOpacitySlider.toggle() }) {
+                    Image(systemName: "circle.lefthalf.striped.horizontal")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(FolderTabPalette.barIcon)
+                        .frame(width: 24, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Background Opacity")
+                .popover(isPresented: $showOpacitySlider, arrowEdge: .top) {
+                    BarSliderPopover(
+                        title: "Opacity",
+                        maxIcon: "circle.fill",
+                        minIcon: "circle",
+                        value: $opacity,
+                        range: TerminalAppearanceSettings.opacityRange,
+                        format: { "\(Int(($0 * 100).rounded()))%" },
+                        onEditingChanged: { editing in
+                            applyLive(.backgroundOpacity,
+                                      String(format: "%.2f", opacity),
+                                      committed: !editing)
+                        }
+                    )
+                    // The file is the source of truth; someone may have changed it in
+                    // Settings since this view was built.
+                    .onAppear { opacity = TerminalAppearanceSettings.backgroundOpacity }
+                }
+                .onChange(of: showOpacitySlider) { _, open in
+                    windowController.beginTransientInteraction(seconds: open ? 120 : 0.8)
+                }
+
+                Button(action: { showFontSizeSlider.toggle() }) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(FolderTabPalette.barIcon)
+                        .frame(width: 24, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Font Size")
+                .popover(isPresented: $showFontSizeSlider, arrowEdge: .top) {
+                    BarSliderPopover(
+                        title: "Font Size",
+                        maxIcon: "textformat.size.larger",
+                        minIcon: "textformat.size.smaller",
+                        value: $fontSize,
+                        range: TerminalAppearanceSettings.fontSizeRange,
+                        format: { "\(Int($0.rounded())) pt" },
+                        onEditingChanged: { editing in
+                            applyLive(.fontSize,
+                                      String(Int(fontSize.rounded())),
+                                      committed: !editing)
+                        }
+                    )
+                    .onAppear { fontSize = TerminalAppearanceSettings.fontSize }
+                }
+                .onChange(of: showFontSizeSlider) { _, open in
+                    windowController.beginTransientInteraction(seconds: open ? 120 : 0.8)
+                }
 
                 Menu {
                     Button {
@@ -154,18 +258,6 @@ struct TabBarView: View {
                 .fill(FolderTabPalette.barTopEdge)
                 .frame(height: 0.5)
         }
-    }
-
-    private func softIcon(_ name: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: name)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(FolderTabPalette.barIcon)
-                .frame(width: 24, height: 20)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(help)
     }
 
     // MARK: - Classic dark top bar (fallback)

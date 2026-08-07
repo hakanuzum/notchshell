@@ -383,6 +383,24 @@ final class GhosttyApp: @unchecked Sendable {
         NotificationCenter.default.post(name: .terminalThemeDidChange, object: nil)
     }
 
+    // MARK: - Live settings
+
+    /// Write a Ghostty setting and make it visible without a restart.
+    ///
+    /// `ManagedConfig` is the store, so persistence across launches is not a separate
+    /// step — the value is read back from `overrides.conf` at startup like any other.
+    ///
+    /// `refreshChromeColors` is not decoration here: the container view behind each
+    /// surface decides whether to paint an opaque backdrop, and that decision depends
+    /// on the opacity that was just written.
+    @discardableResult
+    func apply(_ setting: TerminalSetting, to value: String?) -> Bool {
+        guard TerminalAppearanceSettings.set(setting, to: value) else { return false }
+        reloadConfig()
+        refreshChromeColors()
+        return true
+    }
+
     // MARK: - Theme
 
     /// Apply a theme selection and reload every surface.

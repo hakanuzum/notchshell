@@ -49,6 +49,28 @@ enum TerminalAppearanceSettings {
         return families.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
+    /// Range the app's own controls offer. Fully transparent is not useful — the text
+    /// stays but the terminal stops being a surface you can find.
+    static let opacityRange: ClosedRange<Double> = 0.2...1.0
+    static let fontSizeRange: ClosedRange<Double> = 8...32
+
+    /// Background opacity in effect, defaulting to opaque.
+    ///
+    /// Every layer that paints behind a surface has to agree with this. Ghostty renders
+    /// its own background at this alpha, so anything else painting the same area would
+    /// stack a second copy underneath and quietly cancel the transparency out.
+    static var backgroundOpacity: Double {
+        guard let value = double(.backgroundOpacity) else { return 1 }
+        return min(max(value, opacityRange.lowerBound), opacityRange.upperBound)
+    }
+
+    static var isTranslucent: Bool { backgroundOpacity < 0.999 }
+
+    static var fontSize: Double {
+        guard let value = double(.fontSize) else { return 13 }
+        return min(max(value, fontSizeRange.lowerBound), fontSizeRange.upperBound)
+    }
+
     static func string(_ setting: TerminalSetting) -> String? {
         ManagedConfig.override(setting.rawValue)
     }
