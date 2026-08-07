@@ -1,154 +1,157 @@
-# Hakuke
+<div align="center">
 
-> **Alpha** — Quake-style drop-down terminal for macOS, powered by [Ghostty](https://ghostty.org). Fork of [menemy/macuake](https://github.com/menemy/macuake).
+<img src="docs/media/logo.png" width="112" alt="">
 
-One hotkey. Instant terminal. `Option+Space` slides it down from the top of any screen.
+# Notchshell
 
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
-![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue)
+**One hotkey. The terminal is already open.**
 
-## Features
+A drop-down terminal for macOS. Press `⌥ Space` anywhere and it slides down over
+whatever you were doing; press it again and it is gone. The terminal itself is
+[Ghostty](https://ghostty.org) — GPU-rendered, true colour, ligatures.
 
-- **GPU-accelerated** — GhosttyKit Metal renderer. True color, ligatures, GPU text shaping.
-- **Hotkey toggle** — `Option+Space` (customizable) from any app. No Dock icon.
-- **Tabs & split panes** — multiple sessions with horizontal/vertical splits.
-- **Ghostty themes** — use any Ghostty config for fonts, colors, opacity, keybindings.
-- **MCP server** — built-in HTTP server (port 19876) with 17 tools. Control from Claude Code, Cursor, or any MCP client.
-- **Socket API** — Unix socket at `/tmp/hakuke.sock` for scripting.
-- **Multi-display** — follows cursor across screens, notch-aware.
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
+![Swift 5.10](https://img.shields.io/badge/Swift-5.10-F05138?logo=swift&logoColor=white)
+![Ghostty 1.3.1](https://img.shields.io/badge/Ghostty-1.3.1-00F888?logoColor=white)
+![MIT](https://img.shields.io/badge/License-MIT-blue)
+
+<img src="docs/media/demo.gif" width="820" alt="Notchshell dropping down, splitting panes, switching themes and going translucent">
+
+</div>
+
+---
 
 ## Install
 
-Download from [Releases](https://github.com/hakanuzum/hakuke/releases), or:
+Download the latest `.dmg` from [**Releases**](https://github.com/hakanuzum/notchshell/releases/latest),
+open it, and drag the app onto Applications.
+
+<div align="center">
+<img src="docs/media/installer.png" width="560" alt="The installer window: drag Notchshell onto Applications">
+</div>
+
+The build is signed ad-hoc rather than notarized, so Gatekeeper stops the first
+launch. Right-click the app in `/Applications` and choose **Open** once; after that it
+opens normally.
+
+Notchshell lives in the menu bar and has no Dock icon. Press `⌥ Space` to drop it.
+
+## The tour
+
+Everything below, in one take — [**watch the full tour**](docs/media/tour.mp4) (33s).
+
+https://github.com/hakanuzum/notchshell/raw/main/docs/media/tour.mp4
+
+### Tabs and split panes
+
+`⌘ D` splits horizontally, `⌘ ⇧ D` vertically, and every pane is a real shell. Tabs sit
+on a strip the height of the menu bar, so the terminal keeps the space.
+
+![Split panes running a git graph and a syntax-highlighted file](docs/media/panes.png)
+
+### 602 themes, applied live
+
+The theme picker ships the whole [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)
+catalog, so it works on a clean machine with nothing else installed. Pick one and the
+running panes repaint — no restart, no reload.
+
+![The theme picker open over a light theme](docs/media/themes.png)
+
+Themes in `~/.config/ghostty/themes` take precedence over the bundled ones, and a
+`light:A,dark:B` pair follows the system appearance.
+
+### Opacity, font size and height, on the tab bar
+
+The three things people actually reach for are one click away, not buried in Settings.
+Drag the handle on the bottom edge to resize the panel.
+
+![The panel translucent, the desktop showing through](docs/media/opacity.png)
+
+### Record what you did
+
+The camera button records the active tab to MP4 in `~/Movies/Notchshell`, and can export
+a GIF from it afterwards. Only the terminal is in frame — not the chrome, not the tab
+bar, not what is behind the panel.
+
+## Shortcuts
+
+| | |
+|---|---|
+| Toggle terminal | `⌥ Space` |
+| Pin / unpin | `⌘ ⇧ P` |
+| New tab · close tab | `⌘ T` · `⌘ W` |
+| Reopen closed tab | `⌘ ⇧ T` |
+| Next / previous tab | `⌘ ⇧ ]` · `⌘ ⇧ [` |
+| Go to tab 1–9 | `⌘ 1` – `⌘ 9` |
+| Split horizontal · vertical | `⌘ D` · `⌘ ⇧ D` |
+| Next / previous pane | `⌘ ]` · `⌘ [` |
+| Copy · paste | `⌘ C` · `⌘ V` |
+| Clear screen · find | `⌘ K` · `⌘ F` |
+| Settings · Help | `⌘ ,` · `⌘ /` |
+
+Unpinned, the panel hides when it loses focus. Pin it to keep it down.
+
+## Configuration
+
+Notchshell reads your own Ghostty config at `~/.config/ghostty/config` and **never
+writes to it**. Anything you change in the app lands in
+`~/.config/notchshell/overrides.conf`, which your config is included into — so font,
+palette, keybindings and opacity all come from one place you control.
+
+## Automation
+
+Three ways in, all off or ask-first by default.
+
+**Command line.** Settings links `notchshell` onto your `PATH`:
 
 ```bash
-curl -LO https://github.com/hakanuzum/hakuke/releases/latest/download/Hakuke.dmg
-open Hakuke.dmg
-# Drag to /Applications
+notchshell              # drop the terminal
+notchshell ~/src/app    # drop it with a new tab there
 ```
 
-The `.dmg` is ad-hoc signed (not notarized) — first launch needs right-click → Open.
-
-## Usage
-
-Launch Hakuke — it lives in the menu bar (no Dock icon). Press `Option+Space` to toggle.
-
-| Shortcut | Action |
-|----------|--------|
-| `Option+Space` | Toggle terminal |
-| `Cmd+T` | New tab |
-| `Cmd+W` | Close tab |
-| `Cmd+D` | Split horizontal |
-| `Cmd+Shift+D` | Split vertical |
-| `Cmd+]` / `Cmd+[` | Next / previous pane |
-| `Cmd+1`..`9` | Switch to tab N |
-| `Cmd+,` | Settings |
-
-## Appearance / theming
-
-This app targets **any shell** (zsh, fish, bash, whatever) and **any prompt setup** —
-it should never assume a particular user's dotfiles. Two layers:
-
-1. **The terminal itself** (font, palette, opacity, cursor) is entirely a Ghostty config
-   concern: `~/.config/ghostty/config`, and any theme file dropped into
-   `~/.config/ghostty/themes/`. Independent of shell choice.
-2. **Prompt/tool colors** (`starship`, `lsd`, `fzf`, fish's own `fish_color_*`) are each
-   their own separate config with their own hardcoded palette, and *do not* follow the
-   terminal's theme automatically — that's the actual bug pattern that kept resurfacing
-   during development (terminal switches to a light theme, `lsd`/`starship` keep emitting
-   truecolor tuned for a dark one). `scripts/set-terminal-theme.py` is a stopgap: given a
-   Ghostty theme name, it derives a consistent role mapping (red/green/blue/etc.) and
-   regenerates all of the above from the *same* palette in one shot. It's shell-agnostic
-   in principle but currently only writes fish's config — a zsh equivalent, and ideally a
-   prompt-tool-agnostic mechanism, is open.
-3. **Not yet built:** a real in-app theme picker (Settings → Appearance) that does this
-   without a companion script. Settings currently only exposes "Open Config / Reload
-   Config" buttons pointing at the raw Ghostty config file — see Known Issues.
+**Socket API.** A Unix socket at `/tmp/notchshell.sock`, JSON in and JSON out. See
+[API.md](API.md) for every action.
 
 ```bash
-python3 scripts/set-terminal-theme.py "<Ghostty theme name>" [--background HEXRGB] [--font-size N]
+echo '{"action":"state"}'                      | nc -U /tmp/notchshell.sock
+echo '{"action":"execute","command":"ls -la"}' | nc -U /tmp/notchshell.sock
+echo '{"action":"read","lines":50}'            | nc -U /tmp/notchshell.sock
 ```
 
-### Ghostty config
-
-Hakuke uses your Ghostty config (`~/.config/ghostty/config`). Open it from Settings or:
+**MCP.** An HTTP server on port 19876 exposing 18 tools, so an agent can drive the
+terminal directly:
 
 ```bash
-echo '{"action":"state"}' | nc -U /tmp/hakuke.sock
+claude mcp add --transport http notchshell http://localhost:19876/mcp
 ```
 
-## MCP Server
+The MCP server and the socket API are **disabled until you turn them on** in Settings.
+Nothing phones home; there is no telemetry.
 
-Add to Claude Code:
+## Open from elsewhere
+
+macOS has no "default terminal" setting, so Notchshell answers four routes separately:
+Finder's *Services → New Notchshell Tab Here*, `open -a Notchshell <path>` and Open
+With, the `notchshell://` URL scheme, and the CLI. Help (`⌘ /`) lists them.
+
+## Build from source
+
+Requires macOS 14+, a full Xcode install (not just Command Line Tools) and
+**Zig 0.15.2 exactly** — libghostty is version-gated and 0.16 fails immediately.
 
 ```bash
-claude mcp add --transport http hakuke http://localhost:19876/mcp
+git clone --recursive https://github.com/hakanuzum/notchshell.git
+cd notchshell
+brew install zig@0.15
+./scripts/build-ghostty.sh     # libghostty from vendor/ghostty (slow, once)
+./scripts/build-install.sh     # build, sign, install to /Applications
+./scripts/make-dmg.sh          # package the installer
+./scripts/run-tests.sh         # every suite
 ```
 
-17 tools available: `state`, `list`, `toggle`, `show`, `hide`, `pin`, `unpin`, `new_tab`, `focus`, `close_session`, `execute`, `read`, `paste`, `control_char`, `clear`, `split`, `set_appearance`.
+## License
 
-## Socket API
+MIT — see [LICENSE](LICENSE).
 
-See [API.md](API.md) for the full reference.
-
-```bash
-# Execute a command
-echo '{"action":"execute","command":"ls -la"}' | nc -U /tmp/hakuke.sock
-
-# Read terminal output
-echo '{"action":"read","lines":50}' | nc -U /tmp/hakuke.sock
-```
-
-## Architecture
-
-```
-Hakuke/Sources/Hakuke/
-├── API/              # ControlServer (socket API)
-├── MCP/              # MCPHTTPServer (MCP over HTTP)
-├── Panes/            # PaneManager, PaneNode tree
-├── Settings/         # SettingsView, HelpView
-├── Tabs/             # TabManager, TabBarView
-├── Terminal/         # GhosttyApp, GhosttyBackend, GhosttyTerminalView
-├── Updates/          # SparkleUpdater
-└── Window/           # WindowController, TerminalPanel, ScreenDetector
-```
-
-- **GhosttyKit** — vendored xcframework, GPU Metal terminal engine
-- **KeyboardShortcuts** — global hotkey (sindresorhus)
-- **SPM** project (not Xcode), `swift build` / `swift test`
-
-## Building from source
-
-Requires: macOS 14+, Swift 5.9+, **Zig 0.15.2 exactly** (hard version-gated at compile
-time — 0.16 fails immediately), and a **full Xcode.app install** (Command Line Tools
-alone were not enough to get GhosttyKit's Apple-SDK detection working during
-development of this fork — a lazy-dependency build step failed to resolve the SDK path
-via `xcode-select`/`xcrun` on a CLT-only machine).
-
-```bash
-git clone --recursive https://github.com/hakanuzum/hakuke.git
-cd hakuke
-brew install zig@0.15   # or download 0.15.2 directly from ziglang.org
-./scripts/build-ghostty.sh
-swift build -c release
-```
-
-## Known issues
-
-- **Menu bar / dialog text still says the old name in current releases.** The `.dmg`s
-  published so far were produced by patching the *compiled upstream binary* (icon,
-  `Info.plist` display name, bundle id) rather than a from-source rebuild, because the
-  from-source build was blocked (see above) on the machine used to cut those releases.
-  A handful of strings compiled into the binary — permission-prompt dialogs, the
-  menu-bar dropdown title, debug window titles — still read the old name until someone
-  does a real from-source build and publishes that instead. The source tree itself
-  (this repo) has already been fully renamed; it's specifically the *currently
-  published `.dmg`* that's a patched binary, not a rebuild.
-- **No in-app theme picker yet** (see Appearance above) — external script only.
-- Not notarized; Gatekeeper will warn on first launch.
-
-## Attribution / License
-
-MIT — this is a fork of [menemy/macuake](https://github.com/menemy/macuake). See
-[LICENSE](LICENSE).
+The bundled theme catalog is [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)
+(MIT). The terminal engine is [Ghostty](https://ghostty.org) (MIT).
