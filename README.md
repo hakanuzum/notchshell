@@ -14,7 +14,7 @@ GPU-rendered on Metal, true colour, ligatures.
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
 ![Swift 5.10](https://img.shields.io/badge/Swift-5.10-F05138?logo=swift&logoColor=white)
 ![Ghostty 1.3.1](https://img.shields.io/badge/Ghostty-1.3.1-00F888?logoColor=white)
-![MIT](https://img.shields.io/badge/License-MIT-blue)
+![License: personal, non-commercial](https://img.shields.io/badge/License-personal%2C%20non--commercial-red)
 
 <img src="docs/media/demo.gif" width="820" alt="Notchshell dropping down, splitting panes, switching themes and going translucent">
 
@@ -152,7 +152,11 @@ brew install zig@0.15
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+© 2026 Hakan Uzum. All rights reserved. The source is public to read, and the app is
+free for personal, non-commercial use — but **commercial use and redistribution are not
+permitted**. See [LICENSE](LICENSE) for the exact terms.
 
-The bundled theme catalog is [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)
-(MIT). The terminal engine is [Ghostty](https://ghostty.org) (MIT).
+Bundled third-party components keep their own licenses: the terminal engine
+[Ghostty](https://ghostty.org) (MIT) and the theme catalog
+[iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes) (MIT). Their
+notices are reproduced in [LICENSE](LICENSE).
