@@ -69,4 +69,7 @@ extension Notification.Name {
     /// Posted when the font size changes from somewhere other than the tab-bar slider —
     /// a ⌘-scroll or a pinch over the terminal — so the slider can catch up.
     static let terminalFontSizeDidChange = Notification.Name("\(AppIdentity.slug).fontSizeDidChange")
+    /// Posted when a terminal surface is clicked, so the Settings sidebar can close —
+    /// clicking into the terminal dismisses it, clicking within it does not.
+    static let terminalClicked = Notification.Name("\(AppIdentity.slug).terminalClicked")
 }

@@ -39,6 +39,7 @@ final class WindowController: ObservableObject {
     private var appSwitchObserver: Any?
     private var screenObserver: Any?
     private var spaceObserver: Any?
+    private var terminalClickObserver: Any?
     private var keyMonitor: Any?
     private var clickMonitor: Any?
     private var middleClickMonitor: Any?
@@ -167,6 +168,9 @@ final class WindowController: ObservableObject {
         if let obs = spaceObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(obs)
         }
+        if let obs = terminalClickObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
         }
@@ -288,6 +292,14 @@ final class WindowController: ObservableObject {
                 guard self.state == .visible else { return }
                 self.suppressAutoHideUntil = Date().addingTimeInterval(1.0)
             }
+        }
+
+        terminalClickObserver = NotificationCenter.default.addObserver(
+            forName: .terminalClicked,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.closeSettingsSidebar() }
         }
     }
 
@@ -686,12 +698,19 @@ final class WindowController: ObservableObject {
     // MARK: - Settings / Help (as tabs)
 
     /// Toggle the Settings sidebar. Also the target of ⌘, and the menu-bar item, so all
-    /// three routes land on the same panel rather than the old Settings tab.
+    /// three routes land on the same panel rather than the old Settings tab. No
+    /// animation: sliding it in flickered the desktop through the translucent terminal,
+    /// and an instant toggle is both cleaner and glitch-free.
     func openSettings() {
         if state == .hidden { show() }
-        withAnimation(.easeOut(duration: 0.18)) {
-            showSettingsSidebar.toggle()
-        }
+        showSettingsSidebar.toggle()
+    }
+
+    /// Close the Settings sidebar if it is open. Called when the terminal is clicked —
+    /// clicking into the terminal dismisses the sidebar, while clicking within the
+    /// sidebar leaves it open; only the toggle (or this) closes it.
+    func closeSettingsSidebar() {
+        if showSettingsSidebar { showSettingsSidebar = false }
     }
 
     func openHelp() {

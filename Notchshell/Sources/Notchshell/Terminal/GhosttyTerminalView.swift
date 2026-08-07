@@ -256,6 +256,10 @@ final class GhosttyTerminalView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        // Clicking into the terminal dismisses the Settings sidebar (a click within the
+        // sidebar does not reach here, so it stays open). The click still drives the
+        // terminal below, so it both closes the sidebar and does what it would anyway.
+        NotificationCenter.default.post(name: .terminalClicked, object: nil)
         let point = convert(event.locationInWindow, from: nil)
         ghostty_surface_mouse_pos(backend?.surface, point.x, bounds.height - point.y, Self.modsFromEvent(event))
         _ = ghostty_surface_mouse_button(backend?.surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_LEFT, Self.modsFromEvent(event))

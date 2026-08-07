@@ -50,10 +50,10 @@ struct PanelContentView: View {
         Color(nsColor: tabManager.theme.background)
     }
 
-    /// Settings sidebar width: 35% of the shelf, with a floor so it stays usable on a
+    /// Settings sidebar width: 30% of the shelf, with a floor so it stays usable on a
     /// narrow panel.
     private var settingsSidebarWidth: CGFloat {
-        max(fullWidth * 0.35, 280)
+        max(fullWidth * 0.30, 280)
     }
 
     // MARK: - Content: terminal body + tab bar placement
@@ -95,31 +95,18 @@ struct PanelContentView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                // Settings, docked to the trailing edge at 35% of the shelf width. The
-                // terminal keeps the rest — a real side panel, not an overlay.
-                //
-                // The container is always present and its *width* animates 0 ↔ target,
-                // rather than a view sliding in. A slide-in transition leaves a moment
-                // where the sidebar's strip is transparent, and because the terminal is
-                // translucent the desktop icons behind it flash through. Here an opaque
-                // fill occupies the strip at every width — even zero — so nothing behind
-                // ever shows; the settings are clipped to the growing width and revealed
-                // as it opens.
-                ZStack(alignment: .trailing) {
-                    opaqueBodyBackground
-                    if windowController.showSettingsSidebar {
-                        SettingsView(windowController: windowController)
-                            .frame(width: settingsSidebarWidth)
-                    }
-                }
-                .frame(width: windowController.showSettingsSidebar ? settingsSidebarWidth : 0)
-                .clipped()
-                .overlay(alignment: .leading) {
-                    if windowController.showSettingsSidebar {
-                        Rectangle()
-                            .fill(PanelChrome.border(style: windowController.chromeStyle))
-                            .frame(width: 0.5)
-                    }
+                // Settings, docked to the trailing edge at 30% of the shelf width. The
+                // terminal keeps the rest — a real side panel, not an overlay. It appears
+                // and disappears instantly: a slide animation flickered the desktop
+                // through the translucent terminal, and it is opaque so its text never
+                // falls onto whatever shows through the terminal.
+                if windowController.showSettingsSidebar {
+                    Rectangle()
+                        .fill(PanelChrome.border(style: windowController.chromeStyle))
+                        .frame(width: 0.5)
+                    SettingsView(windowController: windowController)
+                        .frame(width: settingsSidebarWidth)
+                        .background(opaqueBodyBackground)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
