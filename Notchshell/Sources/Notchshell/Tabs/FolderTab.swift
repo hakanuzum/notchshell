@@ -84,8 +84,16 @@ struct FolderTab: View {
     /// The agent CLI running in this tab, if any.
     var agent: AgentKind?
     let isActive: Bool
+    /// True when the name has been renamed by hand, so the editor opens with it rather
+    /// than blank.
+    var hasCustomTitle: Bool = false
+    /// Double-click puts the name into an editor. Bound rather than local so only one
+    /// tab in the bar can be editing at a time.
+    var isEditing: Binding<Bool> = .constant(false)
     let onSelect: () -> Void
     let onClose: () -> Void
+    /// Nil clears a custom name and hands the tab back to its directory.
+    var onRename: (String?) -> Void = { _ in }
     /// Middle-click-to-close is driven from a window-level monitor, which needs to know
     /// which tab the pointer is over.
     var onHover: (Bool) -> Void = { _ in }
@@ -95,6 +103,13 @@ struct FolderTab: View {
     let height: CGFloat
 
     @State private var isHovered = false
+    @State private var editText = ""
+    @FocusState private var fieldFocused: Bool
+
+    /// Set by the bar, which resolves it from the chrome setting.
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: FolderTabPalette { .of(colorScheme) }
 
     static let slant: CGFloat = 11
     /// Bar left visible below the tabs, so the tab reads as sitting *in* the bar.
@@ -116,11 +131,27 @@ struct FolderTab: View {
                 // Matches TrafficLightClose, so the two ends of the tab weigh the same.
                 AgentBadge(agent: agent, size: TrafficLightClose.diameter)
             }
-            Text(title)
-                .font(.system(size: 11, weight: isActive ? .semibold : .regular))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: 120)
+            if isEditing.wrappedValue {
+                TextField("Tab name", text: $editText, onCommit: commitRename)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .frame(maxWidth: 120)
+                    .focused($fieldFocused)
+                    .onExitCommand { isEditing.wrappedValue = false }
+                    .onChange(of: fieldFocused) {
+                        if !fieldFocused { commitRename() }
+                    }
+                    .onAppear {
+                        editText = hasCustomTitle ? title : ""
+                        fieldFocused = true
+                    }
+            } else {
+                Text(title)
+                    .font(.system(size: 11, weight: isActive ? .semibold : .regular))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 120)
+            }
             // Reserve the slot rather than inserting on hover: a tab that changes
             // width under the pointer shifts every tab after it.
             TrafficLightClose(
@@ -131,7 +162,7 @@ struct FolderTab: View {
             .opacity(isHovered || isActive ? 1 : 0)
             .allowsHitTesting(isHovered || isActive)
         }
-        .foregroundColor(isActive ? FolderTabPalette.activeText : FolderTabPalette.inactiveText)
+        .foregroundColor(isActive ? palette.activeText : palette.inactiveText)
         // The diagonals eat into the leading and trailing edges, so the label has to
         // clear them before its own padding starts.
         .padding(.horizontal, Self.slant + 5)
@@ -139,9 +170,15 @@ struct FolderTab: View {
         .background(shape.fill(fill))
         .overlay(
             FolderTabOutline(slant: Self.slant)
-                .stroke(FolderTabPalette.border, lineWidth: 0.75)
+                .stroke(palette.border, lineWidth: 0.75)
         )
         .contentShape(shape)
+        // A single tap selects; a double tap renames. `count: 2` has to be declared
+        // first or the single-tap gesture swallows both halves of the double.
+        .onTapGesture(count: 2) {
+            guard kind == .terminal else { return }
+            isEditing.wrappedValue = true
+        }
         .onTapGesture(perform: onSelect)
         .onHover { hovering in
             isHovered = hovering
@@ -149,42 +186,93 @@ struct FolderTab: View {
         }
     }
 
+    private func commitRename() {
+        guard isEditing.wrappedValue else { return }
+        onRename(editText.isEmpty ? nil : editText)
+        isEditing.wrappedValue = false
+    }
+
     private var fill: LinearGradient {
         if isActive {
             return LinearGradient(
-                colors: [FolderTabPalette.activeTop, FolderTabPalette.activeBottom],
+                colors: [palette.activeTop, palette.activeBottom],
                 startPoint: .top,
                 endPoint: .bottom
             )
         }
-        let top = isHovered ? FolderTabPalette.hoverTop : FolderTabPalette.inactiveTop
-        let bottom = isHovered ? FolderTabPalette.hoverBottom : FolderTabPalette.inactiveBottom
+        let top = isHovered ? palette.hoverTop : palette.inactiveTop
+        let bottom = isHovered ? palette.hoverBottom : palette.inactiveBottom
         return LinearGradient(colors: [top, bottom], startPoint: .top, endPoint: .bottom)
     }
 }
 
-/// The bar reads as a folder divider only if it is clearly darker than the tabs it
-/// holds. These values are the reference's relationship — mid-grey bar, light tabs,
-/// near-white active — rather than its exact greys.
-enum FolderTabPalette {
-    static let bar = Color(nsColor: NSColor(calibratedWhite: 0.70, alpha: 1.0))
-    static let barTopEdge = Color.black.opacity(0.22)
+/// The bar reads as a folder divider only if it is clearly *recessed* against the tabs
+/// it holds: bar furthest back, inactive tabs in front of it, the active tab furthest
+/// forward. That ordering is the design; the greys are only one way of expressing it.
+///
+/// Dark is the same ordering rebuilt from the other end rather than the light values
+/// inverted. Inverting them gives an active tab at 3% white — a hole in the bar rather
+/// than a tab standing in front of it — so the dark set climbs 0.13 → 0.20 → 0.31 and
+/// keeps the same three steps of separation the light set has.
+struct FolderTabPalette {
+    let bar: Color
+    let barTopEdge: Color
 
-    static let activeTop = Color(nsColor: NSColor(calibratedWhite: 1.00, alpha: 1.0))
-    static let activeBottom = Color(nsColor: NSColor(calibratedWhite: 0.97, alpha: 1.0))
+    let activeTop: Color
+    let activeBottom: Color
 
-    static let inactiveTop = Color(nsColor: NSColor(calibratedWhite: 0.91, alpha: 1.0))
-    static let inactiveBottom = Color(nsColor: NSColor(calibratedWhite: 0.84, alpha: 1.0))
+    let inactiveTop: Color
+    let inactiveBottom: Color
 
-    static let hoverTop = Color(nsColor: NSColor(calibratedWhite: 0.96, alpha: 1.0))
-    static let hoverBottom = Color(nsColor: NSColor(calibratedWhite: 0.90, alpha: 1.0))
+    let hoverTop: Color
+    let hoverBottom: Color
 
-    static let border = Color.black.opacity(0.20)
+    let border: Color
 
-    static let activeText = Color(nsColor: NSColor(calibratedWhite: 0.13, alpha: 1.0))
-    static let inactiveText = Color(nsColor: NSColor(calibratedWhite: 0.32, alpha: 1.0))
-    /// Icons sit on the bar itself, not on a tab, so they need the darker bar's contrast.
-    static let barIcon = Color(nsColor: NSColor(calibratedWhite: 0.24, alpha: 1.0))
+    let activeText: Color
+    let inactiveText: Color
+    /// Icons sit on the bar itself, not on a tab, so they take the bar's contrast.
+    let barIcon: Color
     /// A bar icon in its on state — the accent, so an open toggle reads as engaged.
-    static let barIconActive = Color(nsColor: .controlAccentColor)
+    let barIconActive: Color
+
+    static func of(_ scheme: ColorScheme) -> FolderTabPalette {
+        scheme == .dark ? .dark : .light
+    }
+
+    private static func grey(_ white: CGFloat) -> Color {
+        Color(nsColor: NSColor(calibratedWhite: white, alpha: 1.0))
+    }
+
+    static let light = FolderTabPalette(
+        bar: grey(0.70),
+        barTopEdge: Color.black.opacity(0.22),
+        activeTop: grey(1.00),
+        activeBottom: grey(0.97),
+        inactiveTop: grey(0.91),
+        inactiveBottom: grey(0.84),
+        hoverTop: grey(0.96),
+        hoverBottom: grey(0.90),
+        border: Color.black.opacity(0.20),
+        activeText: grey(0.13),
+        inactiveText: grey(0.32),
+        barIcon: grey(0.24),
+        barIconActive: Color(nsColor: .controlAccentColor)
+    )
+
+    static let dark = FolderTabPalette(
+        bar: grey(0.13),
+        barTopEdge: Color.black.opacity(0.55),
+        activeTop: grey(0.31),
+        activeBottom: grey(0.27),
+        inactiveTop: grey(0.20),
+        inactiveBottom: grey(0.17),
+        hoverTop: grey(0.25),
+        hoverBottom: grey(0.22),
+        border: Color.black.opacity(0.55),
+        activeText: grey(0.97),
+        inactiveText: grey(0.62),
+        barIcon: grey(0.72),
+        barIconActive: Color(nsColor: .controlAccentColor)
+    )
 }

@@ -86,16 +86,14 @@ final class WindowController: ObservableObject {
     /// bar height returned the band directly below it, so `sourceRect` on a window
     /// filter is relative to the window's top-left, not AppKit's bottom-left.
     ///
-    /// Excludes the tab bar, which sits below the terminal in the light chrome and
-    /// above it in the dark one.
+    /// Excludes the tab bar, which always sits below the terminal.
     var terminalContentRect: CGRect {
         let size = terminalSize
         let bar = tabBarHeight
-        let softChrome = PanelChrome.isSoftLight(chromeStyle)
         let windowWidth = panel.frame.width > 0 ? panel.frame.width : size.width
         return CGRect(
             x: ((windowWidth - size.width) / 2).rounded(),
-            y: (menuBarHeight + (softChrome ? 0 : bar)).rounded(),
+            y: menuBarHeight.rounded(),
             width: size.width.rounded(),
             height: max(size.height - bar, 1).rounded()
         )

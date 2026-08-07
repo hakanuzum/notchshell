@@ -17,12 +17,15 @@ struct PanelResizeGrabber: View {
     @State private var dragStartHeight: CGFloat = 0
     @State private var isHovered = false
 
+    /// Set by the tab bar from the chrome setting.
+    @Environment(\.colorScheme) private var colorScheme
+
     private static let barWidth: CGFloat = 38
     private static let barThickness: CGFloat = 4.5
 
     var body: some View {
         Capsule()
-            .fill(FolderTabPalette.barIcon.opacity(isHovered || dragStartHeight != 0 ? 0.62 : 0.34))
+            .fill(FolderTabPalette.of(colorScheme).barIcon.opacity(isHovered || dragStartHeight != 0 ? 0.62 : 0.34))
             .frame(width: Self.barWidth, height: Self.barThickness)
             // The drawn capsule is 4.5pt tall, which is nothing to aim at. The hit area
             // is the whole strip around it.

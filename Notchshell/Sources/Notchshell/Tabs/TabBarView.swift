@@ -29,8 +29,8 @@ struct TabBarView: View {
         windowController.chromeStyle
     }
 
-    private var isSoft: Bool {
-        PanelChrome.isSoftLight(chrome)
+    private var palette: FolderTabPalette {
+        .of(PanelChrome.colorScheme(style: chrome))
     }
 
     private var barHeight: CGFloat { windowController.tabBarHeight }
@@ -40,21 +40,17 @@ struct TabBarView: View {
     }
 
     var body: some View {
-        Group {
-            if isSoft {
-                // Unclutter: tabs + controls on the BOTTOM strip
-                softBottomBar
-            } else {
-                classicTopBar
-            }
-        }
-        .environment(\.colorScheme, PanelChrome.colorScheme(style: chrome))
-        .contentShape(Rectangle())
+        // The chrome setting is resolved here and handed down as the environment's
+        // colour scheme, so every tab and control below reads one value rather than
+        // each consulting the setting for itself.
+        bottomBar
+            .environment(\.colorScheme, PanelChrome.colorScheme(style: chrome))
+            .contentShape(Rectangle())
     }
 
-    // MARK: - Soft bottom bar (tabs left · palette / + / … right)
+    // MARK: - Bottom bar (tabs left · palette / + / … right)
 
-    private var softBottomBar: some View {
+    private var bottomBar: some View {
         // Top-aligned: a folder tab has to touch the terminal above it, so the tab row
         // hangs from the bar's top edge and the slack falls below.
         HStack(alignment: .top, spacing: 0) {
@@ -69,8 +65,14 @@ struct TabBarView: View {
                             kind: tab.kind,
                             agent: tabManager.agents[tab.id],
                             isActive: index == tabManager.activeTabIndex,
+                            hasCustomTitle: tab.customTitle != nil,
+                            isEditing: Binding(
+                                get: { tabManager.editingTabID == tab.id },
+                                set: { tabManager.editingTabID = $0 ? tab.id : nil }
+                            ),
                             onSelect: { tabManager.selectTab(at: index) },
                             onClose: { tabManager.closeTab(id: tab.id) },
+                            onRename: { tabManager.renameTab(id: tab.id, name: $0) },
                             onHover: { hovered in
                                 tabManager.hoveredTabIndex = hovered ? index : nil
                             },
@@ -100,7 +102,7 @@ struct TabBarView: View {
                     Button(action: { tabManager.addTab() }) {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(FolderTabPalette.barIcon)
+                            .foregroundColor(palette.barIcon)
                             .frame(width: 22, height: 22)
                             .contentShape(Rectangle())
                     }
@@ -123,7 +125,7 @@ struct TabBarView: View {
                     Button(action: { showTabList.toggle() }) {
                         Image(systemName: "list.bullet")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(FolderTabPalette.barIcon)
+                            .foregroundColor(palette.barIcon)
                             .frame(width: 24, height: 20)
                     }
                     .buttonStyle(.plain)
@@ -136,7 +138,7 @@ struct TabBarView: View {
                 Button(action: { showThemePicker.toggle() }) {
                     Image(systemName: "paintpalette")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(FolderTabPalette.barIcon)
+                        .foregroundColor(palette.barIcon)
                         .frame(width: 26, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -162,7 +164,7 @@ struct TabBarView: View {
                 Button(action: { showOpacitySlider.toggle() }) {
                     Image(systemName: "circle.lefthalf.striped.horizontal")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(FolderTabPalette.barIcon)
+                        .foregroundColor(palette.barIcon)
                         .frame(width: 24, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -195,7 +197,7 @@ struct TabBarView: View {
                     // — the loupe read as Find, which is a different thing entirely.
                     Image(systemName: "textformat.size")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(FolderTabPalette.barIcon)
+                        .foregroundColor(palette.barIcon)
                         .frame(width: 24, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -231,8 +233,8 @@ struct TabBarView: View {
                     Image(systemName: "sidebar.right")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(windowController.showSettingsSidebar
-                                         ? FolderTabPalette.barIconActive
-                                         : FolderTabPalette.barIcon)
+                                         ? palette.barIconActive
+                                         : palette.barIcon)
                         .frame(width: 24, height: 20)
                 }
                 .buttonStyle(.plain)
@@ -249,10 +251,10 @@ struct TabBarView: View {
         // the taller bar, leaving a strip of bar between the tabs and the terminal —
         // which is the join the whole shape exists to make.
         .frame(height: barHeight, alignment: .top)
-        .background(FolderTabPalette.bar)
+        .background(palette.bar)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(FolderTabPalette.barTopEdge)
+                .fill(palette.barTopEdge)
                 .frame(height: 0.5)
         }
         // Drawn last so its hit area sits above the bar, and centred because that is
@@ -267,136 +269,6 @@ struct TabBarView: View {
         }
     }
 
-    // MARK: - Classic dark top bar (fallback)
-
-    private var classicTopBar: some View {
-        HStack(spacing: 0) {
-            GeometryReader { outerGeo in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        HStack(spacing: 1) {
-                            ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                                TabItemView(
-                                    tabID: tab.id,
-                                    index: index + 1,
-                                    title: shortTitle(tab.displayTitle),
-                                    kind: tab.kind,
-                                    agent: tabManager.agents[tab.id],
-                                    isActive: index == tabManager.activeTabIndex,
-                                    hasCustomTitle: tab.customTitle != nil,
-                                    isEditing: Binding(
-                                        get: { tabManager.editingTabID == tab.id },
-                                        set: { editing in
-                                            tabManager.editingTabID = editing ? tab.id : nil
-                                        }
-                                    ),
-                                    onSelect: { tabManager.selectTab(at: index) },
-                                    onClose: { tabManager.closeTab(id: tab.id) },
-                                    onRename: { name in
-                                        tabManager.renameTab(id: tab.id, name: name)
-                                    },
-                                    onHover: { hovered in
-                                        tabManager.hoveredTabIndex = hovered ? index : nil
-                                    }
-                                )
-                                .opacity(draggedTabID == tab.id ? 0.4 : 1.0)
-                                .onDrag {
-                                    draggedTabID = tab.id
-                                    return NSItemProvider(object: tab.id as NSString)
-                                }
-                                .onDrop(of: [.text], delegate: TabDropDelegate(
-                                    tabManager: tabManager,
-                                    targetTabID: tab.id,
-                                    draggedTabID: $draggedTabID
-                                ))
-                            }
-                        }
-                        .padding(.leading, 4)
-                        .background(GeometryReader { innerGeo in
-                            Color.clear.onChange(of: tabManager.tabs.count) {
-                                tabsOverflow = innerGeo.size.width > outerGeo.size.width
-                            }
-                            .onAppear {
-                                tabsOverflow = innerGeo.size.width > outerGeo.size.width
-                            }
-                        })
-
-                        Color.clear.frame(maxWidth: .infinity)
-                    }
-                    .frame(minWidth: outerGeo.size.width, alignment: .leading)
-                }
-            }
-            .overlay(DoubleClickCatcher { [weak tabManager] in
-                guard let tabManager, tabManager.hoveredTabIndex == nil else { return }
-                tabManager.addTab()
-            })
-
-            if tabsOverflow {
-                Button(action: { showTabList.toggle() }) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showTabList, arrowEdge: .bottom) {
-                    TabListPopover(tabManager: tabManager, onDismiss: { showTabList = false })
-                }
-            }
-
-            Spacer()
-
-            Button(action: { windowController.isPinned.toggle() }) {
-                Image(systemName: windowController.isPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(windowController.isPinned ? .yellow.opacity(0.9) : .secondary)
-                    .rotationEffect(.degrees(windowController.isPinned ? 0 : 45))
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-
-            Button(action: { showThemePicker.toggle() }) {
-                Image(systemName: "paintpalette")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .help("Themes")
-            .popover(isPresented: $showThemePicker, arrowEdge: .bottom) {
-                ThemePickerPopover(windowController: windowController) {
-                    showThemePicker = false
-                }
-            }
-            .onChange(of: showThemePicker) { _, open in
-                if open {
-                    windowController.beginTransientInteraction(seconds: 120)
-                } else {
-                    windowController.beginTransientInteraction(seconds: 0.8)
-                }
-            }
-
-            Button(action: { windowController.openSettings() }) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-
-            Button(action: { tabManager.addTab() }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, 8)
-        }
-        .padding(.top, 4)
-        .frame(height: 36)
-        .background(Color.black.opacity(0.85))
-    }
 
     private func shortTitle(_ title: String) -> String {
         tabShortTitle(title)
@@ -408,133 +280,8 @@ func tabShortTitle(_ title: String) -> String {
     return components.last.map(String.init) ?? title
 }
 
-struct TabItemView: View {
-    let tabID: String
-    let index: Int
-    let title: String
-    let kind: Tab.TabKind
-    /// The agent CLI running in this tab, if any.
-    var agent: AgentKind?
-    let isActive: Bool
-    let hasCustomTitle: Bool
-    @Binding var isEditing: Bool
-    let onSelect: () -> Void
-    let onClose: () -> Void
-    let onRename: (String?) -> Void
-    let onHover: (Bool) -> Void
-
-    @State private var isHovered = false
-    @State private var editText = ""
-    @FocusState private var fieldFocused: Bool
-
-    private var icon: String? {
-        switch kind {
-        case .settings: return "gearshape"
-        case .help: return "questionmark.circle"
-        case .terminal: return nil
-        }
-    }
-
-    var body: some View {
-        // 6, not 4: the name needs to sit clear of the mark on its left and the close
-        // button on its right, or the three read as one run of glyphs.
-        HStack(spacing: 6) {
-            HStack(spacing: 6) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 10))
-                        .foregroundColor(isActive ? .primary : .secondary)
-                } else if let agent {
-                    // Matches the close button's 14pt hit frame on the other end.
-                    AgentBadge(agent: agent, size: 14)
-                }
-                if isEditing {
-                    TextField("Tab name", text: $editText, onCommit: {
-                        onRename(editText.isEmpty ? nil : editText)
-                        isEditing = false
-                    })
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11))
-                    .frame(maxWidth: 120)
-                    .focused($fieldFocused)
-                    .onExitCommand { isEditing = false }
-                    .onChange(of: fieldFocused) {
-                        if !fieldFocused {
-                            onRename(editText.isEmpty ? nil : editText)
-                            isEditing = false
-                        }
-                    }
-                    .onAppear { fieldFocused = true }
-                } else {
-                    Text(title)
-                        .font(.system(size: 11))
-                        .foregroundColor(isActive ? .primary : .secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: 120)
-                }
-                if kind == .terminal && index <= 9 {
-                    Text("⌘\(index)")
-                        .font(.system(size: 9, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary.opacity(0.5))
-                }
-            }
-            .contentShape(Rectangle())
-            .overlay(MouseDownOverlay(
-                action: { onSelect() },
-                doubleAction: kind == .terminal ? {
-                    editText = hasCustomTitle ? title : ""
-                    isEditing = true
-                } : nil
-            ))
-
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 14, height: 14)
-                    .background(Circle().fill(Color.primary.opacity(isHovered ? 0.1 : 0)))
-            }
-            .buttonStyle(.plain)
-            .opacity(isHovered || isActive ? 1 : 0.3)
-            .allowsHitTesting(isHovered || isActive)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .contentShape(Rectangle())
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(
-                    isActive
-                        ? Color.primary.opacity(0.10)
-                        : (isHovered ? Color.primary.opacity(0.05) : Color.clear)
-                )
-        )
-        .onHover { hovering in
-            isHovered = hovering
-            onHover(hovering)
-        }
-    }
-}
-
 // MARK: - Mouse / double-click / tab list / drag helpers
 
-struct MouseDownOverlay: NSViewRepresentable {
-    let action: () -> Void
-    let doubleAction: (() -> Void)?
-
-    func makeNSView(context: Context) -> MouseDownNSView {
-        let v = MouseDownNSView()
-        v.action = action
-        v.doubleAction = doubleAction
-        return v
-    }
-
-    func updateNSView(_ v: MouseDownNSView, context: Context) {
-        v.action = action
-        v.doubleAction = doubleAction
-    }
-}
 
 final class MouseDownNSView: NSView {
     var action: (() -> Void)?

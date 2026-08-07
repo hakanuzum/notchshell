@@ -19,10 +19,6 @@ struct PanelContentView: View {
         windowController.state == .visible
     }
 
-    private var isSoft: Bool {
-        PanelChrome.isSoftLight(windowController.chromeStyle)
-    }
-
     private var fullWidth: CGFloat {
         windowController.cachedWidth > 0
             ? windowController.cachedWidth
@@ -66,11 +62,6 @@ struct PanelContentView: View {
 
     private var terminalContent: some View {
         VStack(spacing: 0) {
-            // Soft (Unclutter): tabs BOTTOM. Dark: tabs TOP.
-            if !isSoft {
-                TabBarView(tabManager: tabManager, windowController: windowController)
-            }
-
             HStack(spacing: 0) {
                 ZStack {
                     ForEach(tabManager.tabs) { tab in
@@ -143,9 +134,9 @@ struct PanelContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if isSoft {
-                TabBarView(tabManager: tabManager, windowController: windowController)
-            }
+            // The tab bar sits below the terminal, in both palettes. A folder tab flares
+            // upward to meet the content above it, which only works on this edge.
+            TabBarView(tabManager: tabManager, windowController: windowController)
         }
         .frame(width: fullWidth, height: fullHeight)
     }
@@ -158,12 +149,12 @@ struct PanelContentView: View {
             .overlay(
                 clipShape.stroke(
                     PanelChrome.border(style: windowController.chromeStyle),
-                    lineWidth: isSoft ? 0.75 : 0.5
+                    lineWidth: 0.75
                 )
             )
             .shadow(
                 color: isVisible ? PanelChrome.shadow(style: windowController.chromeStyle) : .clear,
-                radius: isSoft ? 18 : 10,
+                radius: 18,
                 x: 0,
                 y: 6
             )

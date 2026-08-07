@@ -13,11 +13,14 @@ struct RecordButton: View {
     /// the window out mid-take and capture would go silent with nothing to show for it.
     @State private var pinBeforeRecording = false
 
+    /// Set by the tab bar from the chrome setting.
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         Button(action: toggle) {
             Image(systemName: recorder.isRecording ? "stop.circle.fill" : "video")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(recorder.isRecording ? Self.recordingRed : FolderTabPalette.barIcon)
+                .foregroundColor(recorder.isRecording ? Self.recordingRed : FolderTabPalette.of(colorScheme).barIcon)
                 .frame(width: 24, height: 22)
                 .contentShape(Rectangle())
         }
