@@ -8,8 +8,23 @@ extension KeyboardShortcuts.Name {
     static let previousTab = Self("previousTab", default: .init(.leftBracket, modifiers: [.command, .shift]))
 }
 
+/// Everything you can change at a glance: toggles and pickers, nothing that needs
+/// reading first.
+///
+/// Three kinds of thing were taken out. Font size, opacity, panel height and the theme
+/// list now have a control on the tab bar that is faster than opening this at all —
+/// keeping a second copy meant two places to change one value and two chances to
+/// disagree. The shell-colour audit and the "open from elsewhere" routes moved to Help,
+/// because a diagnostic and a list of URL schemes are things you read, not things you
+/// set. And the sliders that remained became pickers, since nobody wants a continuum of
+/// blur radii — they want one of about four.
+///
+/// The one theme control still here is the light/dark *pair*. The palette button cannot
+/// express it, and a pair is the whole reason `ghostty_surface_set_color_scheme` is fed
+/// the real system appearance rather than a constant.
 struct SettingsView: View {
     @ObservedObject var windowController: WindowController
+
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("apiAccess") private var apiAccess: String = "ask"
     @AppStorage("mcpAccess") private var mcpAccess: String = "ask"
@@ -17,632 +32,62 @@ struct SettingsView: View {
     @AppStorage("restoreTabsOnLaunch") private var restoreTabsOnLaunch: Bool = true
     @AppStorage("disableAnimation") private var disableAnimation: Bool = false
     @AppStorage("shellPath") private var shellPath: String = ""
+
     @State private var customShellPath: String = ""
     @State private var isCustomShell: Bool = false
-    @State private var shellTestResult: ShellTestResult?
+    @State private var customShellProblem: String?
+    @FocusState private var shellFieldFocused: Bool
+
     @StateObject private var themeCatalog = ThemeCatalogStore()
-    /// Seeded from the stored selection. `currentThemeName()` returns the raw config
-    /// value, which may be a `light:A,dark:B` pair, so it is parsed rather than used
-    /// as a picker tag directly.
     @State private var followsAppearance: Bool =
         GhosttyThemeCatalog.currentSelection()?.followsSystemAppearance ?? false
     @State private var lightTheme: String =
         GhosttyThemeCatalog.currentSelection()?.lightTheme ?? "Catppuccin Latte"
     @State private var darkTheme: String =
         GhosttyThemeCatalog.currentSelection()?.darkTheme ?? "Catppuccin Mocha"
-    @State private var themeFilter: String = ""
-    @State private var fontFamily: String = TerminalAppearanceSettings.string(.fontFamily) ?? ""
-    @State private var fontSize: Double = TerminalAppearanceSettings.double(.fontSize) ?? 13
-    @State private var backgroundOpacity: Double = TerminalAppearanceSettings.double(.backgroundOpacity) ?? 1
-    @State private var blurRadius: Double = TerminalAppearanceSettings.double(.backgroundBlurRadius) ?? 0
-    @State private var cursorStyle: String = TerminalAppearanceSettings.string(.cursorStyle) ?? "block"
-    @State private var cliMessage: String?
-    @State private var cliInstalledAt: String? = CommandLineInstaller.existingInstallation()
-    @State private var colourReport: ShellColorAudit.Report?
-    @State private var auditRan = false
-    @State private var themeApplyMessage: String?
-    @FocusState private var shellFieldFocused: Bool
 
-    private enum ShellTestResult {
-        case ok, notFound, notExecutable
-    }
+    @State private var fontFamily: String = TerminalAppearanceSettings.string(.fontFamily) ?? ""
+    @State private var cursorStyle: String = TerminalAppearanceSettings.string(.cursorStyle) ?? "block"
+    @State private var blurRadius: Int = TerminalAppearanceSettings.int(.backgroundBlurRadius) ?? 0
 
     private static let knownShells = [
-        "/bin/zsh",
-        "/bin/bash",
-        "/bin/sh",
-        "/usr/local/bin/fish",
-        "/opt/homebrew/bin/fish",
-        "/usr/local/bin/zsh",
-        "/opt/homebrew/bin/zsh",
-        "/usr/local/bin/bash",
-        "/opt/homebrew/bin/bash",
+        "/bin/zsh", "/bin/bash", "/bin/sh",
+        "/usr/local/bin/fish", "/opt/homebrew/bin/fish",
+        "/usr/local/bin/zsh", "/opt/homebrew/bin/zsh",
+        "/usr/local/bin/bash", "/opt/homebrew/bin/bash",
     ]
 
     private var availableShells: [String] {
         Self.knownShells.filter { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
+    /// Blur is a continuum in Ghostty and a choice of about four to everyone else.
+    private static let blurChoices: [(label: String, value: Int)] = [
+        ("Off", 0), ("Light", 10), ("Medium", 20), ("Strong", 35),
+    ]
+
+    private static let widthChoices = [50, 75, 100]
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Settings")
-                    .font(.title2.bold())
+                Text("Settings").font(.title2.bold())
 
-                GroupBox("General") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Toggle("Launch at login", isOn: $launchAtLogin)
-                                .onChange(of: launchAtLogin) {
-                                    do {
-                                        if launchAtLogin {
-                                            try SMAppService.mainApp.register()
-                                        } else {
-                                            try SMAppService.mainApp.unregister()
-                                        }
-                                    } catch {
-                                        launchAtLogin = SMAppService.mainApp.status == .enabled
-                                    }
-                                }
-                            Spacer()
-                        }
-                        HStack {
-                            Toggle("Confirm before quitting", isOn: $confirmOnQuit)
-                            Spacer()
-                        }
-                        HStack {
-                            Toggle("Restore tabs on launch", isOn: $restoreTabsOnLaunch)
-                            Spacer()
-                        }
-                        HStack {
-                            Toggle("Disable animation", isOn: $disableAnimation)
-                            Spacer()
-                        }
-                    }
-                    .padding(8)
-                }
+                general
+                terminal
+                shell
+                panel
+                keyboard
+                api
+                advanced
 
-                GroupBox("Shell") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Picker("Shell path:", selection: Binding(
-                                get: {
-                                    if isCustomShell { return "__custom__" }
-                                    let current = shellPath.isEmpty ? "auto" : shellPath
-                                    if current == "auto" { return "auto" }
-                                    if availableShells.contains(current) { return current }
-                                    return "__custom__"
-                                },
-                                set: { newValue in
-                                    if newValue == "__custom__" {
-                                        isCustomShell = true
-                                        customShellPath = shellPath
-                                    } else if newValue == "auto" {
-                                        isCustomShell = false
-                                        shellPath = ""
-                                    } else {
-                                        isCustomShell = false
-                                        shellPath = newValue
-                                    }
-                                }
-                            )) {
-                                Text("Auto ($SHELL)").tag("auto")
-                                ForEach(availableShells, id: \.self) { path in
-                                    Text(path).tag(path)
-                                }
-                                Divider()
-                                Text("Custom...").tag("__custom__")
-                            }
-                            Spacer()
-                        }
-
-                        if isCustomShell {
-                            HStack {
-                                TextField("Path to shell or command", text: Binding(
-                                    get: { customShellPath },
-                                    set: { customShellPath = $0; shellTestResult = nil }
-                                ))
-                                    .textFieldStyle(.roundedBorder)
-                                    .focused($shellFieldFocused)
-                                    .onSubmit { testAndApplyShell() }
-                                    .onChange(of: shellFieldFocused) {
-                                        if !shellFieldFocused && !customShellPath.isEmpty {
-                                            testAndApplyShell()
-                                        }
-                                    }
-                                Button("Test") { testAndApplyShell() }
-                                    .buttonStyle(.bordered)
-                            }
-
-                            if let result = shellTestResult {
-                                HStack(spacing: 4) {
-                                    switch result {
-                                    case .ok:
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
-                                        Text("Valid executable — applied.")
-                                    case .notFound:
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.red)
-                                        Text("File not found.")
-                                    case .notExecutable:
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.red)
-                                        Text("Not executable.")
-                                    }
-                                }
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            }
-                        }
-
-                        Text("Changes apply to new tabs only.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(8)
-                }
-                .onAppear {
-                    let current = shellPath
-                    if !current.isEmpty && current != "auto" && !availableShells.contains(current) {
-                        isCustomShell = true
-                        customShellPath = current
-                    }
-                }
-
-                GroupBox("API") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Picker("Socket API (\(AppIdentity.controlSocketPath)):", selection: $apiAccess) {
-                                Text("Enabled").tag("enabled")
-                                Text("Ask on first request").tag("ask")
-                                Text("Disabled").tag("disabled")
-                            }
-                            .pickerStyle(.menu)
-                            Spacer()
-                        }
-                        HStack {
-                            Picker("MCP server (HTTP, port \(String(MCPHTTPServer.defaultPort))):", selection: $mcpAccess) {
-                                Text("Enabled").tag("enabled")
-                                Text("Ask on first request").tag("ask")
-                                Text("Disabled").tag("disabled")
-                            }
-                            .pickerStyle(.menu)
-                            Spacer()
-                        }
-                        Text("MCP server changes take effect after restart.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(8)
-                }
-
-                GroupBox("Panel Chrome") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Picker("Chrome:", selection: Binding(
-                            get: { windowController.chromeStyle },
-                            set: { windowController.setChromeStyle($0) }
-                        )) {
-                            ForEach(PanelChromeStyle.allCases) { style in
-                                Text(style.displayName).tag(style)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        Text("Light = Unclutter-style bottom tabs. Dark = classic top tab bar.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(8)
-                }
-
-                GroupBox("Shell Colour Compatibility") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("A colour written as a hex value in your shell config is frozen — the terminal cannot repaint it when the theme changes, so colours picked against a dark background stay put on a light one. Colours written as ANSI names follow the theme instead.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        HStack(spacing: 10) {
-                            Button("Check My Shell Config") {
-                                colourReport = ShellColorAudit.audit(forDarkAppearance: false)
-                                auditRan = true
-                            }
-                            .buttonStyle(.bordered)
-                            Spacer()
-                        }
-
-                        if let report = colourReport {
-                            Text("Checked against \(report.themeName) (\(report.backgroundHex)) — your light theme, where the problem shows.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-
-                            if report.findings.isEmpty {
-                                Label("No hardcoded colours found.", systemImage: "checkmark.circle")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else if report.isClean {
-                                Label("\(report.findings.count) hardcoded colours, all still legible.",
-                                      systemImage: "checkmark.circle")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Label("\(report.unreadable.count) of \(report.findings.count) fall below 3:1 and are effectively invisible.",
-                                      systemImage: "exclamationmark.triangle")
-                                    .font(.caption)
-
-                                ScrollView {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        ForEach(Array(report.unreadable.prefix(12).enumerated()), id: \.offset) { _, finding in
-                                            HStack(spacing: 6) {
-                                                RoundedRectangle(cornerRadius: 2)
-                                                    .fill(Color(nsColor: ShellColorAudit.colour(fromHex: finding.hex) ?? .gray))
-                                                    .frame(width: 12, height: 12)
-                                                Text(verbatim: "\(finding.file):\(finding.line)")
-                                                    .foregroundColor(.secondary)
-                                                Text(verbatim: finding.label.isEmpty ? "#\(finding.hex)" : finding.label)
-                                                Spacer()
-                                                Text(String(format: "%.1f:1", finding.contrast))
-                                                    .foregroundColor(.secondary)
-                                                    .monospacedDigit()
-                                            }
-                                            .font(.system(size: 10, design: .monospaced))
-                                        }
-                                    }
-                                }
-                                .frame(maxHeight: 140)
-
-                                Text("Fix by replacing the hex value with an ANSI name — `a6e3a1` becomes `green`, `38;2;137;180;250` becomes `34`. Colours meant to recede, like comments and autosuggestions, are fine as they are.")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        } else if auditRan {
-                            Text("Could not read the active theme.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Text("Nothing here is modified — your shell config is yours.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(8)
-                }
-
-                GroupBox("Open From Elsewhere") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("macOS has no system-wide default terminal, so \(AppIdentity.displayName) makes itself reachable several ways.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
-                            GridRow {
-                                Text("Finder").font(.caption).foregroundColor(.secondary)
-                                Text("right click a folder › Services › \(AppIdentity.finderServiceTitle)")
-                                    .font(.caption)
-                            }
-                            GridRow {
-                                Text("Anywhere").font(.caption).foregroundColor(.secondary)
-                                Text(verbatim: "open -a \(AppIdentity.displayName) <folder>")
-                                    .font(.system(size: 11, design: .monospaced))
-                            }
-                            GridRow {
-                                Text("URL").font(.caption).foregroundColor(.secondary)
-                                Text(verbatim: "\(AppIdentity.slug)://<folder>")
-                                    .font(.system(size: 11, design: .monospaced))
-                            }
-                            GridRow {
-                                Text("Editors").font(.caption).foregroundColor(.secondary)
-                                Text(verbatim: "\"terminal.external.osxExec\": \"\(AppIdentity.displayName).app\"")
-                                    .font(.system(size: 11, design: .monospaced))
-                            }
-                        }
-
-                        Divider()
-
-                        HStack(spacing: 10) {
-                            Button(cliInstalledAt == nil ? "Install Command Line Tool" : "Reinstall Command Line Tool") {
-                                installCLI()
-                            }
-                            .buttonStyle(.bordered)
-                            Spacer()
-                        }
-
-                        if let cliInstalledAt {
-                            Text(verbatim: "notchshell → \(cliInstalledAt)")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(.secondary)
-                        }
-                        if let cliMessage {
-                            Text(cliMessage).font(.caption).foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(8)
-                }
-
-                GroupBox("Terminal Appearance") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Written to \(ManagedConfig.overridesPath). Your own Ghostty config is included ahead of it and never modified.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        HStack {
-                            Picker("Font:", selection: $fontFamily) {
-                                Text("Ghostty default").tag("")
-                                Divider()
-                                ForEach(TerminalAppearanceSettings.monospacedFontFamilies, id: \.self) { family in
-                                    Text(family).tag(family)
-                                }
-                            }
-                            .onChange(of: fontFamily) {
-                                apply(.fontFamily, fontFamily.isEmpty ? nil : fontFamily)
-                            }
-                        }
-
-                        HStack {
-                            Text("Size:").frame(width: 60, alignment: .leading)
-                            Slider(value: $fontSize, in: 8...32, step: 1) { editing in
-                                if !editing { apply(.fontSize, String(Int(fontSize))) }
-                            }
-                            Text("\(Int(fontSize)) pt").font(.caption).monospacedDigit().frame(width: 46)
-                        }
-
-                        HStack {
-                            Text("Opacity:").frame(width: 60, alignment: .leading)
-                            Slider(value: $backgroundOpacity, in: 0.3...1, step: 0.01) { editing in
-                                if !editing { apply(.backgroundOpacity, String(format: "%.2f", backgroundOpacity)) }
-                            }
-                            Text("\(Int(backgroundOpacity * 100))%").font(.caption).monospacedDigit().frame(width: 46)
-                        }
-
-                        HStack {
-                            Text("Blur:").frame(width: 60, alignment: .leading)
-                            Slider(value: $blurRadius, in: 0...50, step: 1) { editing in
-                                if !editing {
-                                    apply(.backgroundBlurRadius, blurRadius == 0 ? nil : String(Int(blurRadius)))
-                                }
-                            }
-                            Text(blurRadius == 0 ? "off" : "\(Int(blurRadius))")
-                                .font(.caption).monospacedDigit().frame(width: 46)
-                        }
-
-                        Picker("Cursor:", selection: $cursorStyle) {
-                            ForEach(TerminalAppearanceSettings.cursorStyles, id: \.self) { style in
-                                Text(style.capitalized).tag(style)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: cursorStyle) { apply(.cursorStyle, cursorStyle) }
-                    }
-                    .padding(8)
-                }
-
-                GroupBox("Terminal Theme") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Bundled Ghostty themes; drop your own in ~/.config/ghostty/themes to override. Palette button on the tab bar is the fast path.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        TextField("Filter themes…", text: $themeFilter)
-                            .textFieldStyle(.roundedBorder)
-
-                        let filtered = themeCatalog.themeNames.filter {
-                            themeFilter.isEmpty || $0.localizedCaseInsensitiveContains(themeFilter)
-                        }
-
-                        Toggle("Follow system appearance", isOn: $followsAppearance)
-                            .help("Use one theme in Light mode and another in Dark mode.")
-
-                        Picker(followsAppearance ? "Light theme" : "Theme", selection: $lightTheme) {
-                            ForEach(filtered, id: \.self) { name in
-                                Text(name).tag(name)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        if followsAppearance {
-                            Picker("Dark theme", selection: $darkTheme) {
-                                ForEach(filtered, id: \.self) { name in
-                                    Text(name).tag(name)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
-
-                        HStack(spacing: 10) {
-                            Button("Apply Theme") {
-                                let selection: ThemeSelection = followsAppearance
-                                    ? .pair(light: lightTheme, dark: darkTheme)
-                                    : .single(lightTheme)
-                                let ok = windowController.applyGhosttyTheme(selection)
-                                themeApplyMessage = ok
-                                    ? "Applied “\(selection.configValue)”."
-                                    : "Theme not found."
-                            }
-                            .buttonStyle(.borderedProminent)
-
-                            Button("Reload Themes") {
-                                Task { await themeCatalog.reload() }
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(themeCatalog.isLoading)
-
-                            Spacer()
-                        }
-
-                        if let themeApplyMessage {
-                            Text(themeApplyMessage)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Text("\(themeCatalog.themeNames.count) themes · also available from the palette button on the tab bar")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-
-                        HStack(spacing: 12) {
-                            Button("Open Config") {
-                                GhosttyApp.shared.openConfig()
-                            }
-                            .buttonStyle(.bordered)
-
-                            Button("Reload Config") {
-                                GhosttyApp.shared.reloadConfig()
-                            }
-                            .buttonStyle(.bordered)
-
-                            Spacer()
-                        }
-                    }
-                    .padding(8)
-                    .task {
-                        await themeCatalog.load()
-                        if let selection = GhosttyThemeCatalog.currentSelection() {
-                            followsAppearance = selection.followsSystemAppearance
-                            lightTheme = selection.lightTheme
-                            darkTheme = selection.darkTheme
-                        }
-                    }
-                }
-
-                GroupBox("Keyboard") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            KeyboardShortcuts.Recorder("Toggle Terminal:", name: .toggleTerminal)
-                            Spacer()
-                        }
-                        HStack {
-                            KeyboardShortcuts.Recorder("Next Tab:", name: .nextTab)
-                            Spacer()
-                        }
-                        HStack {
-                            KeyboardShortcuts.Recorder("Previous Tab:", name: .previousTab)
-                            Spacer()
-                        }
-                        Text("Ctrl+Tab and ⌘1-9 are always available.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(8)
-                }
-
-                GroupBox("Size") {
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("Width:")
-                                .frame(width: 50, alignment: .leading)
-                            Slider(
-                                value: Binding(
-                                    get: { Double(windowController.widthPercent) },
-                                    set: { windowController.setWidthPercent(Int($0)) }
-                                ),
-                                in: 30...100,
-                                step: 5
-                            )
-                            Text("\(windowController.widthPercent)%")
-                                .monospacedDigit()
-                                .frame(width: 36)
-                        }
-
-                        HStack {
-                            Text("Height:")
-                                .frame(width: 50, alignment: .leading)
-                            Slider(
-                                value: Binding(
-                                    get: { Double(windowController.heightPercent) },
-                                    set: { windowController.setHeightPercent(Int($0)) }
-                                ),
-                                in: 20...100,
-                                step: 5
-                            )
-                            Text("\(windowController.heightPercent)%")
-                                .monospacedDigit()
-                                .frame(width: 36)
-                        }
-                    }
-                    .padding(8)
-                }
-
-                GroupBox("Display") {
-                    HStack {
-                        Picker("Screen:", selection: Binding(
-                            get: { windowController.displayID },
-                            set: { windowController.setDisplayID($0) }
-                        )) {
-                            Text("Auto (follow cursor)").tag(0 as Int)
-                            ForEach(NSScreen.screens, id: \.self) { screen in
-                                Text(screen.localizedName)
-                                    .tag(screenID(for: screen))
-                            }
-                        }
-                        Spacer()
-                    }
-                    .padding(8)
-                }
-                GroupBox("Updates") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Toggle("Check for updates automatically", isOn: Binding(
-                                get: { SparkleUpdater.shared.automaticallyChecksForUpdates },
-                                set: { SparkleUpdater.shared.automaticallyChecksForUpdates = $0 }
-                            ))
-                            Spacer()
-                        }
-                        HStack {
-                            Button("Check for Updates…") {
-                                SparkleUpdater.shared.checkForUpdates()
-                            }
-                            .disabled(!SparkleUpdater.shared.canCheckForUpdates)
-                            Spacer()
-                        }
-                    }
-                    .padding(8)
-                }
-
-                Divider()
-                    .padding(.top, 8)
-
-                Button(action: {
-                    NSApplication.shared.terminate(nil)
-                }) {
-                    Label("Quit \(AppIdentity.displayName)", systemImage: "power")
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.red)
-
-                Divider()
-                    .padding(.top, 8)
+                Divider().padding(.top, 8)
 
                 Text("\(AppIdentity.displayName) v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
 
-                DisclosureGroup("Acknowledgements") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("GhosttyKit")
-                            .font(.caption.bold())
-                        Text("Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                        Text("MIT License — Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to the above copyright notice and this permission notice being included in all copies or substantial portions of the Software.")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-
-                        Divider()
-
-                        Text("KeyboardShortcuts")
-                            .font(.caption.bold())
-                        Text("Copyright (c) Sindre Sorhus")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                        Text("MIT License")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(8)
-                }
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                acknowledgements
             }
             .padding(24)
         }
@@ -651,39 +96,347 @@ struct SettingsView: View {
         .preferredColorScheme(PanelChrome.colorScheme(style: windowController.chromeStyle))
     }
 
-    /// Write a setting and reload, so the change is visible immediately rather than
-    /// at the next launch.
-    private func apply(_ setting: TerminalSetting, _ value: String?) {
-        TerminalAppearanceSettings.set(setting, to: value)
-        GhosttyApp.shared.reloadConfig()
+    // MARK: - General
+
+    private var general: some View {
+        GroupBox("General") {
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Launch at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) {
+                        do {
+                            if launchAtLogin {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                        }
+                    }
+                Toggle("Confirm before quitting", isOn: $confirmOnQuit)
+                Toggle("Restore tabs on launch", isOn: $restoreTabsOnLaunch)
+                Toggle("Disable animation", isOn: $disableAnimation)
+                Toggle("Check for updates automatically", isOn: Binding(
+                    get: { SparkleUpdater.shared.automaticallyChecksForUpdates },
+                    set: { SparkleUpdater.shared.automaticallyChecksForUpdates = $0 }
+                ))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+        }
     }
 
-    private func installCLI() {
-        switch CommandLineInstaller.install() {
-        case .installed(let path, let onPath):
-            cliInstalledAt = path
-            let directory = (path as NSString).deletingLastPathComponent
-            cliMessage = onPath
-                ? "Installed. Run `\(AppIdentity.slug)` from any shell."
-                : "Installed, but \(directory) may not be on your PATH — add it if the command is not found."
-        case .alreadyInstalled(let path):
-            cliInstalledAt = path
-            cliMessage = "Already installed."
-        case .failed(let reason):
-            cliMessage = reason
+    // MARK: - Terminal
+
+    private var terminal: some View {
+        GroupBox("Terminal") {
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("Font:", selection: $fontFamily) {
+                    Text("Ghostty default").tag("")
+                    Divider()
+                    ForEach(TerminalAppearanceSettings.monospacedFontFamilies, id: \.self) { family in
+                        Text(family).tag(family)
+                    }
+                }
+                .onChange(of: fontFamily) {
+                    apply(.fontFamily, fontFamily.isEmpty ? nil : fontFamily)
+                }
+
+                Picker("Cursor:", selection: $cursorStyle) {
+                    ForEach(TerminalAppearanceSettings.cursorStyles, id: \.self) { style in
+                        Text(style.capitalized).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: cursorStyle) { apply(.cursorStyle, cursorStyle) }
+
+                Picker("Blur:", selection: $blurRadius) {
+                    ForEach(Self.blurChoices, id: \.value) { choice in
+                        Text(choice.label).tag(choice.value)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: blurRadius) {
+                    apply(.backgroundBlurRadius, blurRadius == 0 ? nil : String(blurRadius))
+                }
+
+                Divider()
+
+                // The palette button sets one theme. Only a pair needs this.
+                Toggle("Separate light and dark themes", isOn: $followsAppearance)
+                    .onChange(of: followsAppearance) { applyThemeSelection() }
+
+                if followsAppearance {
+                    Picker("Light:", selection: $lightTheme) {
+                        ForEach(themeCatalog.themeNames, id: \.self) { Text($0).tag($0) }
+                    }
+                    .onChange(of: lightTheme) { applyThemeSelection() }
+
+                    Picker("Dark:", selection: $darkTheme) {
+                        ForEach(themeCatalog.themeNames, id: \.self) { Text($0).tag($0) }
+                    }
+                    .onChange(of: darkTheme) { applyThemeSelection() }
+                } else {
+                    Text("Pick the single theme from the palette button on the tab bar.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Text("Written to \(ManagedConfig.overridesPath). Your own Ghostty config is included ahead of it and never modified.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .task {
+                await themeCatalog.load()
+                if let selection = GhosttyThemeCatalog.currentSelection() {
+                    followsAppearance = selection.followsSystemAppearance
+                    lightTheme = selection.lightTheme
+                    darkTheme = selection.darkTheme
+                }
+            }
         }
+    }
+
+    // MARK: - Shell
+
+    private var shell: some View {
+        GroupBox("Shell") {
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Shell:", selection: Binding(
+                    get: {
+                        if isCustomShell { return "__custom__" }
+                        let current = shellPath.isEmpty ? "auto" : shellPath
+                        if current == "auto" { return "auto" }
+                        return availableShells.contains(current) ? current : "__custom__"
+                    },
+                    set: { newValue in
+                        customShellProblem = nil
+                        switch newValue {
+                        case "__custom__":
+                            isCustomShell = true
+                            customShellPath = shellPath
+                        case "auto":
+                            isCustomShell = false
+                            shellPath = ""
+                        default:
+                            isCustomShell = false
+                            shellPath = newValue
+                        }
+                    }
+                )) {
+                    Text("Auto ($SHELL)").tag("auto")
+                    ForEach(availableShells, id: \.self) { Text($0).tag($0) }
+                    Divider()
+                    Text("Custom…").tag("__custom__")
+                }
+
+                if isCustomShell {
+                    // No Test button: the path is checked when the field is committed,
+                    // which is the only moment the answer could have changed.
+                    TextField("Path to shell or command", text: Binding(
+                        get: { customShellPath },
+                        set: { customShellPath = $0; customShellProblem = nil }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .focused($shellFieldFocused)
+                    .onSubmit { testAndApplyShell() }
+                    .onChange(of: shellFieldFocused) {
+                        if !shellFieldFocused && !customShellPath.isEmpty { testAndApplyShell() }
+                    }
+
+                    if let customShellProblem {
+                        Label(customShellProblem, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Text("Changes apply to new tabs only.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(8)
+            .onAppear {
+                let current = shellPath
+                if !current.isEmpty && current != "auto" && !availableShells.contains(current) {
+                    isCustomShell = true
+                    customShellPath = current
+                }
+            }
+        }
+    }
+
+    // MARK: - Panel
+
+    private var panel: some View {
+        GroupBox("Panel") {
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("Chrome:", selection: Binding(
+                    get: { windowController.chromeStyle },
+                    set: { windowController.setChromeStyle($0) }
+                )) {
+                    ForEach(PanelChromeStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Picker("Width:", selection: Binding(
+                    get: { Self.widthChoices.min(by: {
+                        abs($0 - windowController.widthPercent) < abs($1 - windowController.widthPercent)
+                    }) ?? 100 },
+                    set: { windowController.setWidthPercent($0) }
+                )) {
+                    ForEach(Self.widthChoices, id: \.self) { Text("\($0)%").tag($0) }
+                }
+                .pickerStyle(.segmented)
+
+                Picker("Screen:", selection: Binding(
+                    get: { windowController.displayID },
+                    set: { windowController.setDisplayID($0) }
+                )) {
+                    Text("Auto (follow cursor)").tag(0 as Int)
+                    ForEach(NSScreen.screens, id: \.self) { screen in
+                        Text(screen.localizedName).tag(screenID(for: screen))
+                    }
+                }
+
+                Text("Height is set by dragging the handle on the panel's bottom edge.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(8)
+        }
+    }
+
+    // MARK: - Keyboard
+
+    private var keyboard: some View {
+        GroupBox("Keyboard") {
+            VStack(alignment: .leading, spacing: 8) {
+                KeyboardShortcuts.Recorder("Toggle Terminal:", name: .toggleTerminal)
+                KeyboardShortcuts.Recorder("Next Tab:", name: .nextTab)
+                KeyboardShortcuts.Recorder("Previous Tab:", name: .previousTab)
+                Text("Ctrl+Tab and ⌘1-9 are always available.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+        }
+    }
+
+    // MARK: - API
+
+    private var api: some View {
+        GroupBox("API") {
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Socket:", selection: $apiAccess) {
+                    Text("Enabled").tag("enabled")
+                    Text("Ask first").tag("ask")
+                    Text("Disabled").tag("disabled")
+                }
+                .pickerStyle(.segmented)
+
+                Picker("MCP:", selection: $mcpAccess) {
+                    Text("Enabled").tag("enabled")
+                    Text("Ask first").tag("ask")
+                    Text("Disabled").tag("disabled")
+                }
+                .pickerStyle(.segmented)
+
+                Text(verbatim: "\(AppIdentity.controlSocketPath) · MCP on port \(MCPHTTPServer.defaultPort), takes effect after restart.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+        }
+    }
+
+    // MARK: - Advanced
+
+    private var advanced: some View {
+        GroupBox("Advanced") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Button("Open Config") { GhosttyApp.shared.openConfig() }
+                    Button("Reload Config") { GhosttyApp.shared.reloadConfig() }
+                    Button("Check for Updates…") { SparkleUpdater.shared.checkForUpdates() }
+                        .disabled(!SparkleUpdater.shared.canCheckForUpdates)
+                    Spacer()
+                }
+                .buttonStyle(.bordered)
+
+                Text("Command line tool, Finder services and the shell colour check are in Help.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider()
+
+                Button(action: { NSApplication.shared.terminate(nil) }) {
+                    Label("Quit \(AppIdentity.displayName)", systemImage: "power")
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.red)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+        }
+    }
+
+    private var acknowledgements: some View {
+        DisclosureGroup("Acknowledgements") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("GhosttyKit").font(.caption.bold())
+                Text("Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                Text("MIT License — Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to the above copyright notice and this permission notice being included in all copies or substantial portions of the Software.")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+
+                Divider()
+
+                Text("KeyboardShortcuts").font(.caption.bold())
+                Text("Copyright (c) Sindre Sorhus")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                Text("MIT License")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+            }
+            .padding(8)
+        }
+        .font(.system(size: 11))
+        .foregroundColor(.secondary)
+    }
+
+    // MARK: - Actions
+
+    /// Write a setting and reload, so the change is visible immediately rather than at
+    /// the next launch.
+    private func apply(_ setting: TerminalSetting, _ value: String?) {
+        GhosttyApp.shared.apply(setting, to: value)
+    }
+
+    private func applyThemeSelection() {
+        let selection: ThemeSelection = followsAppearance
+            ? .pair(light: lightTheme, dark: darkTheme)
+            : .single(lightTheme)
+        windowController.applyGhosttyTheme(selection)
     }
 
     private func testAndApplyShell() {
         let path = customShellPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !path.isEmpty else { shellTestResult = .notFound; return }
         let fm = FileManager.default
-        if !fm.fileExists(atPath: path) {
-            shellTestResult = .notFound
+        if path.isEmpty {
+            customShellProblem = "Enter a path."
+        } else if !fm.fileExists(atPath: path) {
+            customShellProblem = "File not found."
         } else if !fm.isExecutableFile(atPath: path) {
-            shellTestResult = .notExecutable
+            customShellProblem = "Not executable."
         } else {
-            shellTestResult = .ok
+            customShellProblem = nil
             shellPath = path
         }
     }

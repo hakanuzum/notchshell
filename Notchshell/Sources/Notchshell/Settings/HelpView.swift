@@ -124,6 +124,16 @@ struct HelpView: View {
 
                 Divider()
 
+                // MARK: - Reference (moved out of Settings)
+
+                OpenFromElsewhereSection()
+
+                Divider()
+
+                ShellColourAuditSection()
+
+                Divider()
+
                 // MARK: - Troubleshooting
 
                 DisclosureGroup("Troubleshooting") {
