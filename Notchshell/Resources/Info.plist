@@ -27,7 +27,7 @@
 	<key>CFBundleName</key>
 	<string>Notchshell</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.4</string>
+	<string>0.3.5</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -40,7 +40,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>4</string>
+	<string>5</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
