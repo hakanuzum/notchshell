@@ -9,7 +9,12 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", from: "2.0.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.0.0"),
-        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.7.1"),
+        // Pinned exactly, not `from:`. This dependency is pre-1.0, so `from: "0.7.1"`
+        // let SPM resolve 0.11.0, which does not compile against the current
+        // toolchain — `sending 'sendContinuationResumed' risks causing data races`.
+        // That went unnoticed for a long time because .build held objects from an
+        // older toolchain; the failure only appeared once the cache was invalidated.
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.12.1"),
     ],
     targets: [
         .binaryTarget(

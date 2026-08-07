@@ -62,6 +62,26 @@ struct PermissionDeclarationTests {
         }
     }
 
+    // MARK: - Finder Services
+
+    /// Settings tells people the exact menu item to look for. If the plist and that
+    /// string drift apart, the instructions send them hunting for something that is
+    /// not there — and nothing at runtime notices.
+    @Test func serviceTitle_matchesWhatSettingsTellsTheUser() throws {
+        let services = try #require(try Self.plist("Info.plist")["NSServices"] as? [[String: Any]])
+        let titles = services.compactMap { ($0["NSMenuItem"] as? [String: Any])?["default"] as? String }
+        #expect(titles.contains(AppIdentity.finderServiceTitle))
+    }
+
+    /// Shaped after Terminal.app's own entry: a plain folder, and an alias or symlink
+    /// pointing at one, both have to work.
+    @Test func service_acceptsFoldersAndAliases() throws {
+        let services = try #require(try Self.plist("Info.plist")["NSServices"] as? [[String: Any]])
+        let fileTypes = services.compactMap { $0["NSSendFileTypes"] as? [String] }.flatMap { $0 }
+        #expect(fileTypes.contains("public.directory"))
+        #expect(fileTypes.contains("com.apple.resolvable"))
+    }
+
     // MARK: - Entitlements
 
     /// Sandboxing would defeat the point: the app exists to run programs the user

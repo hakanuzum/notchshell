@@ -57,6 +57,12 @@ enum AppIdentity {
             || info.processName.contains("swiftpm-testing-helper")
     }
 
+    /// Title of the Finder Services entry. Declared in Info.plist under NSServices
+    /// and shown to the user in Settings; the two must agree or Settings tells people
+    /// to look for a menu item that does not exist. `PermissionDeclarationTests`
+    /// checks it against the plist.
+    static let finderServiceTitle = "New Terminal at Folder"
+
     /// Scratch paths used by the `--debug-window` harness.
     static func debugScratchPath(_ suffix: String) -> String { "/tmp/\(slug)-\(suffix)" }
 

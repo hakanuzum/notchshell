@@ -57,7 +57,7 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>New Notchshell Tab Here</string>
+				<string>New Terminal at Folder</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>openTabAtFolder</string>
@@ -68,9 +68,18 @@
 				<key>NSTextContent</key>
 				<string>FilePath</string>
 			</dict>
+			<!-- Shaped after Terminal.app's own entry. public.directory rather than
+			     public.folder, plus com.apple.resolvable so aliases and symlinks to a
+			     folder work; NSSendTypes is what lets a selected path in text act as
+			     the target as well. -->
+			<key>NSSendTypes</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
 			<key>NSSendFileTypes</key>
 			<array>
-				<string>public.folder</string>
+				<string>public.directory</string>
+				<string>com.apple.resolvable</string>
 			</array>
 		</dict>
 	</array>

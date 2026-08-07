@@ -318,7 +318,7 @@ struct SettingsView: View {
                         Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
                             GridRow {
                                 Text("Finder").font(.caption).foregroundColor(.secondary)
-                                Text("right click a folder › Services › New \(AppIdentity.displayName) Tab Here")
+                                Text("right click a folder › Services › \(AppIdentity.finderServiceTitle)")
                                     .font(.caption)
                             }
                             GridRow {
