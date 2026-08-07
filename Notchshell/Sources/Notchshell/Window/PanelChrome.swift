@@ -59,8 +59,12 @@ enum PanelChrome {
         isSoftLight(style) ? Color.black.opacity(0.22) : Color.black.opacity(0.35)
     }
 
-    /// Top-docked shelf: square top, rounded bottom.
-    static func clipShape(radius: CGFloat = 12) -> UnevenRoundedRectangle {
+    /// Top-docked shelf: square all round.
+    ///
+    /// The bottom corners used to be rounded, which clipped the ends of the tab bar
+    /// into arcs. A full-width shelf whose tab bar is the height of the menu bar reads
+    /// as a second menu bar, and menu bars do not have rounded ends.
+    static func clipShape(radius: CGFloat = 0) -> UnevenRoundedRectangle {
         UnevenRoundedRectangle(
             topLeadingRadius: 0, bottomLeadingRadius: radius,
             bottomTrailingRadius: radius, topTrailingRadius: 0

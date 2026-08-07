@@ -17,6 +17,18 @@ struct TabBarView: View {
         PanelChrome.isSoftLight(chrome)
     }
 
+    /// The bar matches the menu bar's height, so the shelf is bracketed by two strips
+    /// of the same weight. Both figures matter: a notched display reports the notch
+    /// through `safeAreaInsets` and the menu bar through the frame difference.
+    private var barHeight: CGFloat {
+        let screen = windowController.resolvedScreen
+        return max(screen.frame.maxY - screen.visibleFrame.maxY, screen.safeAreaInsets.top)
+    }
+
+    private var tabHeight: CGFloat {
+        max(barHeight - FolderTab.barMargin, 20)
+    }
+
     var body: some View {
         Group {
             if isSoft {
@@ -33,21 +45,37 @@ struct TabBarView: View {
     // MARK: - Soft bottom bar (tabs left · palette / + / … right)
 
     private var softBottomBar: some View {
-        HStack(spacing: 0) {
+        // Top-aligned: a folder tab has to touch the terminal above it, so the tab row
+        // hangs from the bar's top edge and the slack falls below.
+        HStack(alignment: .top, spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 3) {
+                // Negative spacing by exactly one slant: each tab's leading diagonal
+                // lands on its neighbour's trailing diagonal, so the pair share one
+                // edge instead of showing two and a gap.
+                HStack(spacing: -FolderTab.slant) {
                     ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                        SoftTabPill(
+                        FolderTab(
                             title: shortTitle(tab.displayTitle),
                             kind: tab.kind,
                             isActive: index == tabManager.activeTabIndex,
                             onSelect: { tabManager.selectTab(at: index) },
-                            onClose: { tabManager.closeTab(id: tab.id) }
+                            onClose: { tabManager.closeTab(id: tab.id) },
+                            height: tabHeight
+                        )
+                        // The active tab overlaps both neighbours; the rest stack
+                        // leftmost-on-top, which is the direction the diagonals imply.
+                        .zIndex(
+                            index == tabManager.activeTabIndex
+                                ? Double(tabManager.tabs.count + 1)
+                                : Double(tabManager.tabs.count - index)
                         )
                     }
                 }
-                .padding(.leading, 10)
+                .padding(.leading, 8)
+                .padding(.trailing, FolderTab.slant)
             }
+            // A ScrollView takes all the height it is offered, so pin it to the tabs'.
+            .frame(height: tabHeight)
 
             Spacer(minLength: 4)
 
@@ -56,7 +84,7 @@ struct TabBarView: View {
                     Button(action: { showTabList.toggle() }) {
                         Image(systemName: "list.bullet")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .foregroundColor(FolderTabPalette.barIcon)
                             .frame(width: 24, height: 20)
                     }
                     .buttonStyle(.plain)
@@ -69,7 +97,7 @@ struct TabBarView: View {
                 Button(action: { showThemePicker.toggle() }) {
                     Image(systemName: "paintpalette")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .foregroundColor(FolderTabPalette.barIcon)
                         .frame(width: 26, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -106,31 +134,25 @@ struct TabBarView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .foregroundColor(FolderTabPalette.barIcon)
                         .frame(width: 24, height: 20)
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .help("More")
             }
+            .frame(height: tabHeight)
             .padding(.trailing, 10)
         }
-        .frame(height: 32)
-        .background(softBarBackground)
+        // `alignment: .top` is load-bearing. Without it `.frame` centres the tab row in
+        // the taller bar, leaving a strip of bar between the tabs and the terminal —
+        // which is the join the whole shape exists to make.
+        .frame(height: barHeight, alignment: .top)
+        .background(FolderTabPalette.bar)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.black.opacity(0.08))
+                .fill(FolderTabPalette.barTopEdge)
                 .frame(height: 0.5)
-        }
-    }
-
-    private var softBarBackground: some View {
-        ZStack {
-            Color(nsColor: NSColor(calibratedWhite: 0.94, alpha: 0.96))
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(0.45)
-                .environment(\.colorScheme, .light)
         }
     }
 
@@ -138,7 +160,7 @@ struct TabBarView: View {
         Button(action: action) {
             Image(systemName: name)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .foregroundColor(FolderTabPalette.barIcon)
                 .frame(width: 24, height: 20)
                 .contentShape(Rectangle())
         }
@@ -278,55 +300,6 @@ struct TabBarView: View {
 
     private func shortTitle(_ title: String) -> String {
         tabShortTitle(title)
-    }
-}
-
-// MARK: - Soft tab pill
-
-private struct SoftTabPill: View {
-    let title: String
-    let kind: Tab.TabKind
-    let isActive: Bool
-    let onSelect: () -> Void
-    let onClose: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 4) {
-            if kind == .settings {
-                Image(systemName: "gearshape").font(.system(size: 9))
-            } else if kind == .help {
-                Image(systemName: "questionmark.circle").font(.system(size: 9))
-            }
-            Text(title)
-                .font(.system(size: 11, weight: isActive ? .semibold : .regular))
-                .lineLimit(1)
-                .frame(maxWidth: 120)
-            if isHovered || isActive {
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .frame(width: 12, height: 12)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .foregroundColor(isActive ? Color(nsColor: .labelColor) : Color(nsColor: .secondaryLabelColor))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(
-                    isActive
-                        ? Color.black.opacity(0.08)
-                        : (isHovered ? Color.black.opacity(0.04) : Color.clear)
-                )
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
-        .onHover { isHovered = $0 }
     }
 }
 
