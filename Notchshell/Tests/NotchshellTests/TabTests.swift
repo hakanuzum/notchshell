@@ -44,8 +44,12 @@ struct TabDirectoryNameTests {
         #expect(Tab.name(forDirectory: "/Users/someone/src/project") == "project")
     }
 
-    @Test func directoryName_collapsesHomeToTilde() {
-        #expect(Tab.name(forDirectory: NSHomeDirectory()) == "~")
+    /// Home is not special. It used to collapse to `~`, which read as a placeholder
+    /// rather than a name — a tab that had never been `cd`ed looked unnamed.
+    @Test func directoryName_namesHomeAfterItsFolder() {
+        let expected = (NSHomeDirectory() as NSString).lastPathComponent
+        #expect(Tab.name(forDirectory: NSHomeDirectory()) == expected)
+        #expect(Tab.name(forDirectory: NSHomeDirectory()) != "~")
     }
 
     @Test func directoryName_ignoresTrailingSlash() {

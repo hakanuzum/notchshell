@@ -23,11 +23,15 @@ struct Tab: Identifiable {
         customTitle ?? directoryTitle ?? title
     }
 
-    /// A directory as a tab name: its last component, or `~` for home itself.
+    /// A directory as a tab name: its last component.
+    ///
+    /// The home directory used to be special-cased to `~`, the way most terminals write
+    /// it. It read as a placeholder rather than a name — a fresh tab looked unnamed —
+    /// so the exception is gone and home is named after its folder like anywhere else.
+    /// One rule, no special cases.
     static func name(forDirectory path: String) -> String? {
         guard !path.isEmpty else { return nil }
         let standardized = (path as NSString).standardizingPath
-        if standardized == NSHomeDirectory() { return "~" }
         let last = (standardized as NSString).lastPathComponent
         return last.isEmpty ? standardized : last
     }
