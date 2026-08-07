@@ -7,6 +7,11 @@ struct Tab: Identifiable {
     let paneManager: PaneManager?
     var title: String
     var customTitle: String?
+    /// The focused pane's working directory, as a name to show. Kept apart from
+    /// `title` because they answer to different things: this follows `cd`, while
+    /// `title` is whatever the shell last announced over OSC — which for a prompt that
+    /// sets its own title is an abbreviated path frozen at the moment it was written.
+    var directoryTitle: String?
 
     enum TabKind {
         case terminal
@@ -15,7 +20,16 @@ struct Tab: Identifiable {
     }
 
     var displayTitle: String {
-        customTitle ?? title
+        customTitle ?? directoryTitle ?? title
+    }
+
+    /// A directory as a tab name: its last component, or `~` for home itself.
+    static func name(forDirectory path: String) -> String? {
+        guard !path.isEmpty else { return nil }
+        let standardized = (path as NSString).standardizingPath
+        if standardized == NSHomeDirectory() { return "~" }
+        let last = (standardized as NSString).lastPathComponent
+        return last.isEmpty ? standardized : last
     }
 
     /// Backward-compatible accessor: returns the focused pane's instance.
@@ -29,6 +43,7 @@ struct Tab: Identifiable {
         self.kind = .terminal
         self.paneManager = PaneManager(directory: directory)
         self.title = "zsh"
+        self.directoryTitle = directory.flatMap(Tab.name(forDirectory:))
     }
 
     /// Special tab (settings, help)
@@ -84,12 +99,22 @@ final class TabManager: ObservableObject {
     func addTab(in directory: String? = nil) {
         let tab = Tab(directory: directory)
         let tabID = tab.id
-        let index = tabs.count
 
-        // Wire PaneManager callbacks
+        // Wire PaneManager callbacks. These look the tab up by id on every call rather
+        // than closing over the index it had when it was created: closing a tab to its
+        // left shifts everything down, and an index captured here would then point at a
+        // different tab — or past the end — and the guard would silently stop updating
+        // this one for the rest of its life.
         tab.paneManager?.onFocusedTitleChange = { [weak self] title in
-            guard let self, index < self.tabs.count, self.tabs[index].id == tabID else { return }
+            guard let self, let index = self.tabs.firstIndex(where: { $0.id == tabID }) else { return }
             self.tabs[index].title = title
+        }
+
+        // Without this the tab name never followed `cd`. PaneManager has reported the
+        // focused pane's directory all along and nothing was listening.
+        tab.paneManager?.onFocusedDirectoryChange = { [weak self] directory in
+            guard let self, let index = self.tabs.firstIndex(where: { $0.id == tabID }) else { return }
+            self.tabs[index].directoryTitle = Tab.name(forDirectory: directory)
         }
 
         tab.paneManager?.onLastPaneClosed = { [weak self] in

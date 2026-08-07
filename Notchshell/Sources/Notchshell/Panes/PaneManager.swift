@@ -4,7 +4,17 @@ import os.log
 
 final class PaneManager: ObservableObject {
     @Published var rootPane: PaneNode
-    @Published var focusedPaneID: String
+    @Published var focusedPaneID: String {
+        didSet {
+            // Moving between panes changes which directory the tab is "in", and the
+            // per-pane callbacks below only fire when a directory *changes*. Without
+            // this, focusing a pane sitting in another directory left the tab named
+            // after the one you just left.
+            guard focusedPaneID != oldValue else { return }
+            let directory = instances[focusedPaneID]?.currentDirectory ?? ""
+            if !directory.isEmpty { onFocusedDirectoryChange?(directory) }
+        }
+    }
 
     /// Called when the focused pane's title changes.
     var onFocusedTitleChange: ((String) -> Void)?

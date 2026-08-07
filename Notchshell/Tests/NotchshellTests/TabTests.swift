@@ -35,3 +35,53 @@ struct TabTests {
         #expect(id == tab.id)
     }
 }
+
+@Suite(.serialized)
+struct TabDirectoryNameTests {
+
+    @Test func directoryName_isTheLastComponent() {
+        #expect(Tab.name(forDirectory: "/usr/local") == "local")
+        #expect(Tab.name(forDirectory: "/Users/someone/src/project") == "project")
+    }
+
+    @Test func directoryName_collapsesHomeToTilde() {
+        #expect(Tab.name(forDirectory: NSHomeDirectory()) == "~")
+    }
+
+    @Test func directoryName_ignoresTrailingSlash() {
+        #expect(Tab.name(forDirectory: "/usr/local/") == "local")
+    }
+
+    @Test func directoryName_keepsRoot() {
+        #expect(Tab.name(forDirectory: "/") == "/")
+    }
+
+    @Test func directoryName_isNilForEmpty() {
+        #expect(Tab.name(forDirectory: "") == nil)
+    }
+
+    /// The directory wins over whatever the shell last announced over OSC. A prompt
+    /// that writes its own title reports an abbreviated path once and then goes quiet,
+    /// so a tab named from `title` alone stops following `cd`.
+    @Test func displayTitle_prefersDirectoryOverShellTitle() {
+        var tab = Tab()
+        tab.title = "~/D/W/P/notchshell"
+        tab.directoryTitle = "bilake"
+        #expect(tab.displayTitle == "bilake")
+    }
+
+    @Test func displayTitle_fallsBackToShellTitleBeforeAnyDirectory() {
+        var tab = Tab()
+        tab.title = "vim"
+        tab.directoryTitle = nil
+        #expect(tab.displayTitle == "vim")
+    }
+
+    @Test func displayTitle_customNameStillWins() {
+        var tab = Tab()
+        tab.title = "vim"
+        tab.directoryTitle = "bilake"
+        tab.customTitle = "build"
+        #expect(tab.displayTitle == "build")
+    }
+}
