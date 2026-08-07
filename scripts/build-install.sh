@@ -15,7 +15,12 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_BUNDLE="$PROJECT_ROOT/build/Notchshell.app"
 ENTITLEMENTS="$PROJECT_ROOT/Notchshell/Resources/notchshell.entitlements"
 BINARY="$APP_BUNDLE/Contents/MacOS/Notchshell"
-SIGNING_IDENTITY="Developer ID Application: <your identity>"
+# Developer ID to sign with, if one is present. Set NOTCHSHELL_SIGNING_IDENTITY in the
+# environment to your own "Developer ID Application: … (TEAMID)" to produce a
+# distributable build; left unset, the script signs ad-hoc, which is all a local build
+# or an unnotarized release needs. Not hardcoded: a signing identity names a specific
+# Apple account and does not belong in a public repo.
+SIGNING_IDENTITY="${NOTCHSHELL_SIGNING_IDENTITY:-}"
 
 cd "$PROJECT_ROOT"
 source "$SCRIPT_DIR/_toolchain.sh"
@@ -150,15 +155,18 @@ fi
 echo "==> Fixing rpath for embedded frameworks..."
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$BINARY" 2>/dev/null || true
 
-# Check if signing identity is available; fall back to ad-hoc for dev builds
-if security find-identity -v -p codesigning | grep -q "$SIGNING_IDENTITY"; then
+# Sign with the configured Developer ID if it is set and actually present in the
+# keychain; otherwise ad-hoc. The identity must be non-empty before grep — an empty
+# pattern matches every line, so a blank identity would otherwise look "found" and then
+# hand codesign an empty name.
+if [ -n "$SIGNING_IDENTITY" ] && security find-identity -v -p codesigning | grep -qF "$SIGNING_IDENTITY"; then
     SIGN_ID="$SIGNING_IDENTITY"
     SIGN_OPTS="--options runtime"
     echo "==> Signing (inside-out) with: $SIGN_ID"
 else
     SIGN_ID="-"
     SIGN_OPTS=""
-    echo "==> Signing (ad-hoc, Developer ID not found)"
+    echo "==> Signing (ad-hoc; set NOTCHSHELL_SIGNING_IDENTITY for a Developer ID build)"
 fi
 
 # Sign resource bundles in Resources/

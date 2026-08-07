@@ -109,15 +109,17 @@ DEVICE=""
 echo "==> Compressing..."
 hdiutil convert "$SCRATCH/rw.dmg" -quiet -format UDZO -imagekey zlib-level=9 -o "$OUT"
 
-# Sign the image if a Developer ID is on this machine. Ad-hoc signing a .dmg buys
-# nothing — Gatekeeper treats it the same as unsigned — so it is skipped rather than
-# faked. The first-launch workaround belongs in the release notes, not on the backdrop.
-IDENTITY="Developer ID Application: <your identity>"
-if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
+# Sign the image with the configured Developer ID if present. Ad-hoc signing a .dmg
+# buys nothing — Gatekeeper treats it the same as unsigned — so it is skipped rather
+# than faked. The first-launch workaround belongs in the release notes, not on the
+# backdrop. Set NOTCHSHELL_SIGNING_IDENTITY to your own identity; not hardcoded, because
+# a signing identity names a specific Apple account and does not belong in a public repo.
+IDENTITY="${NOTCHSHELL_SIGNING_IDENTITY:-}"
+if [ -n "$IDENTITY" ] && security find-identity -v -p codesigning | grep -qF "$IDENTITY"; then
     echo "==> Signing image..."
     codesign --force --sign "$IDENTITY" "$OUT"
 else
-    echo "==> Developer ID not found; leaving the image unsigned (not notarized)."
+    echo "==> No Developer ID (set NOTCHSHELL_SIGNING_IDENTITY); leaving the image unsigned."
 fi
 
 echo "==> Wrote $OUT ($(du -h "$OUT" | cut -f1))"
