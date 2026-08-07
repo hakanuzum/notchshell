@@ -55,13 +55,14 @@ monotonic integer Sparkle compares.
 
 Auto-update is wired through Sparkle and must stay working. Every release:
 
-1. Bump `CFBundleShortVersionString` and `CFBundleVersion` in
-   `Notchshell/Resources/Info.plist`; commit as `Release <version>`.
+1. `./scripts/bump-version.sh <major|minor|patch>` — moves both version keys in
+   `Info.plist` together; commit as `Release <version>`.
 2. `./scripts/build-install.sh`
 3. `./scripts/make-dmg.sh`
 4. `./scripts/make-appcast.sh <version>` — signs the DMG with the EdDSA key and writes
    `build/appcast/appcast.xml`.
-5. `gh release create v<version> build/Notchshell-<version>.dmg build/appcast/appcast.xml`.
+5. `gh release create v<version> build/Notchshell-<version>.dmg build/appcast/appcast.xml`
+   on **both** remotes.
 
 `appcast.xml` is a **required** release asset — the app fetches it from
 `releases/latest/download/appcast.xml` to discover and verify updates. The `Source code`
@@ -70,6 +71,24 @@ archives GitHub attaches automatically are not ours and are left alone.
 Changing the Sparkle signing key breaks auto-update for every already-shipped build (they
 can no longer verify new signatures) — do not regenerate it without intending exactly
 that.
+
+### Release notes
+
+Group the notes under the headings below, in this order, omitting any that are empty.
+It is [Keep a Changelog](https://keepachangelog.com) trimmed to what this app ships.
+Write for someone deciding whether to update, one bullet per user-visible change,
+imperative and plain — not commit subjects.
+
+- **Added** — new capabilities.
+- **Changed** — behaviour or appearance of something that already existed.
+- **Fixed** — bugs resolved.
+- **Removed** — things taken out.
+
+Below those, keep the standing **Install / update** footer: on the current version or
+later, Settings installs updates in place; a fresh install is the DMG with a
+first-launch right-click → Open; macOS 14+, Apple silicon. When a release cannot
+auto-update from older ones (a signing-key change), say so under **Changed** with the
+one-time manual-install note.
 
 ## Reporting bugs
 
