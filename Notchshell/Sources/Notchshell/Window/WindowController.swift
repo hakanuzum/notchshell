@@ -34,6 +34,7 @@ final class WindowController: ObservableObject {
     private var themeObserver: NSObjectProtocol?
     private var appSwitchObserver: Any?
     private var screenObserver: Any?
+    private var spaceObserver: Any?
     private var keyMonitor: Any?
     private var clickMonitor: Any?
     private var middleClickMonitor: Any?
@@ -159,6 +160,9 @@ final class WindowController: ObservableObject {
         if let obs = screenObserver {
             NotificationCenter.default.removeObserver(obs)
         }
+        if let obs = spaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(obs)
+        }
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
         }
@@ -216,6 +220,12 @@ final class WindowController: ObservableObject {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
+                // Decide after a beat, not now: a Space swipe posts resign-key and
+                // activeSpaceDidChange in an order macOS does not guarantee. Waiting lets
+                // the Space handler set the suppression window first, so a swipe-away does
+                // not hide the panel out from under itself. 0.15s is below notice for a
+                // genuine click-away.
+                try? await Task.sleep(nanoseconds: 150_000_000)
                 guard self.shouldAutoHide() else { return }
                 self.hide()
             }
@@ -234,6 +244,11 @@ final class WindowController: ObservableObject {
                     if self.isPinned {
                         self.panel.resignKey()
                     } else {
+                        // Same reason as the resign handler: an app on the arriving Space
+                        // activates during a swipe, and we must not race the Space handler
+                        // that keeps the panel alive.
+                        try? await Task.sleep(nanoseconds: 150_000_000)
+                        guard self.shouldAutoHide() else { return }
                         self.hide()
                     }
                 }
@@ -248,6 +263,26 @@ final class WindowController: ObservableObject {
             guard let self else { return }
             Task { @MainActor in
                 self.repositionPanel()
+            }
+        }
+
+        // Switching Spaces (a Mission Control swipe) makes the panel resign key and, a
+        // moment later, some other app on the arriving Space activate. Both of those
+        // fire the auto-hide above, so an unpinned panel vanished the instant you swiped
+        // away and had to be re-summoned on the new Space. The panel already joins every
+        // Space (see TerminalPanel.collectionBehavior), so it is present on the one you
+        // land on — it just must not hide on the way. Suppressing auto-hide briefly
+        // across the switch lets it ride along, which reads as the terminal following
+        // you to the new Space rather than closing.
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                guard self.state == .visible else { return }
+                self.suppressAutoHideUntil = Date().addingTimeInterval(1.0)
             }
         }
     }
