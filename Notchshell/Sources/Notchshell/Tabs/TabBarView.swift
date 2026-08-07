@@ -218,28 +218,22 @@ struct TabBarView: View {
                     windowController.beginTransientInteraction(seconds: open ? 120 : 0.8)
                 }
 
-                Menu {
-                    Button {
-                        windowController.isPinned.toggle()
-                    } label: {
-                        Label(
-                            windowController.isPinned ? "Unpin" : "Pin",
-                            systemImage: windowController.isPinned ? "pin.slash" : "pin"
-                        )
-                    }
-                    Divider()
-                    Button("Settings…") { windowController.openSettings() }
-                    Button("Help") { windowController.openHelp() }
-                    Button("Hide") { windowController.hide() }
+                // The trailing control is a sidebar toggle, not a menu: it opens Settings
+                // in a panel on the right rather than dropping a list of actions. Pin,
+                // Hide and Help kept their keyboard shortcuts (⌘⇧P, ⌥Space, ⌘/) and the
+                // menu-bar item; they no longer need a home on the tab bar.
+                Button {
+                    windowController.openSettings()
                 } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(FolderTabPalette.barIcon)
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(windowController.showSettingsSidebar
+                                         ? FolderTabPalette.barIconActive
+                                         : FolderTabPalette.barIcon)
                         .frame(width: 24, height: 20)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("More")
+                .buttonStyle(.plain)
+                .help("Settings")
             }
             .frame(height: tabHeight)
             .padding(.trailing, 10)

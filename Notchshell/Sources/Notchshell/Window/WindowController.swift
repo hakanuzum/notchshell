@@ -17,6 +17,10 @@ final class WindowController: ObservableObject {
 
     @Published var state: PanelState = .hidden
     @Published var isPinned: Bool = false
+    /// Whether the Settings sidebar is open along the trailing edge of the terminal.
+    /// Settings used to open as a full tab; it is a side panel now, so the terminal
+    /// stays visible beside it.
+    @Published var showSettingsSidebar: Bool = false
     @Published var displayID: Int = 0
     /// Full menu-bar width by default (Unclutter shelf).
     @Published var widthPercent: Int = 100
@@ -681,9 +685,13 @@ final class WindowController: ObservableObject {
 
     // MARK: - Settings / Help (as tabs)
 
+    /// Toggle the Settings sidebar. Also the target of ⌘, and the menu-bar item, so all
+    /// three routes land on the same panel rather than the old Settings tab.
     func openSettings() {
-        tabManager.openSettings()
         if state == .hidden { show() }
+        withAnimation(.easeOut(duration: 0.18)) {
+            showSettingsSidebar.toggle()
+        }
     }
 
     func openHelp() {

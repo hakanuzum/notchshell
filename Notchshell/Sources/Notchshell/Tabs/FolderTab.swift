@@ -178,4 +178,6 @@ enum FolderTabPalette {
     static let inactiveText = Color(nsColor: NSColor(calibratedWhite: 0.32, alpha: 1.0))
     /// Icons sit on the bar itself, not on a tab, so they need the darker bar's contrast.
     static let barIcon = Color(nsColor: NSColor(calibratedWhite: 0.24, alpha: 1.0))
+    /// A bar icon in its on state — the accent, so an open toggle reads as engaged.
+    static let barIconActive = Color(nsColor: .controlAccentColor)
 }

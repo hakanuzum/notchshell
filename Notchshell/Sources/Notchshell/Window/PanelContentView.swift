@@ -50,6 +50,12 @@ struct PanelContentView: View {
         Color(nsColor: tabManager.theme.background)
     }
 
+    /// Settings sidebar width: 35% of the shelf, with a floor so it stays usable on a
+    /// narrow panel.
+    private var settingsSidebarWidth: CGFloat {
+        max(fullWidth * 0.35, 280)
+    }
+
     // MARK: - Content: terminal body + tab bar placement
 
     private var terminalContent: some View {
@@ -59,31 +65,61 @@ struct PanelContentView: View {
                 TabBarView(tabManager: tabManager, windowController: windowController)
             }
 
-            ZStack {
-                ForEach(tabManager.tabs) { tab in
-                    Group {
-                        switch tab.kind {
-                        case .terminal:
-                            if let pm = tab.paneManager {
-                                PaneSplitView(
-                                    paneManager: pm,
-                                    tabManager: tabManager,
-                                    theme: tabManager.theme
-                                )
+            HStack(spacing: 0) {
+                ZStack {
+                    ForEach(tabManager.tabs) { tab in
+                        Group {
+                            switch tab.kind {
+                            case .terminal:
+                                if let pm = tab.paneManager {
+                                    PaneSplitView(
+                                        paneManager: pm,
+                                        tabManager: tabManager,
+                                        theme: tabManager.theme
+                                    )
+                                }
+                            case .settings:
+                                SettingsView(windowController: windowController)
+                            case .help:
+                                HelpView()
                             }
-                        case .settings:
-                            SettingsView(windowController: windowController)
-                        case .help:
-                            HelpView()
                         }
+                        // Settings and Help are ordinary views with no background of their
+                        // own, so they carry the terminal's — and they must stay opaque
+                        // even when the terminal is not, or the text sits on the desktop.
+                        .background(tab.kind == .terminal ? bodyBackground : opaqueBodyBackground)
+                        .zIndex(tab.id == tabManager.activeTab?.id ? 1 : 0)
+                        .offset(x: tab.id == tabManager.activeTab?.id ? 0 : 99999)
+                        .allowsHitTesting(tab.id == tabManager.activeTab?.id)
                     }
-                    // Settings and Help are ordinary views with no background of their
-                    // own, so they carry the terminal's — and they must stay opaque
-                    // even when the terminal is not, or the text sits on the desktop.
-                    .background(tab.kind == .terminal ? bodyBackground : opaqueBodyBackground)
-                    .zIndex(tab.id == tabManager.activeTab?.id ? 1 : 0)
-                    .offset(x: tab.id == tabManager.activeTab?.id ? 0 : 99999)
-                    .allowsHitTesting(tab.id == tabManager.activeTab?.id)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                // Settings, docked to the trailing edge at 35% of the shelf width. The
+                // terminal keeps the rest — a real side panel, not an overlay.
+                //
+                // The container is always present and its *width* animates 0 ↔ target,
+                // rather than a view sliding in. A slide-in transition leaves a moment
+                // where the sidebar's strip is transparent, and because the terminal is
+                // translucent the desktop icons behind it flash through. Here an opaque
+                // fill occupies the strip at every width — even zero — so nothing behind
+                // ever shows; the settings are clipped to the growing width and revealed
+                // as it opens.
+                ZStack(alignment: .trailing) {
+                    opaqueBodyBackground
+                    if windowController.showSettingsSidebar {
+                        SettingsView(windowController: windowController)
+                            .frame(width: settingsSidebarWidth)
+                    }
+                }
+                .frame(width: windowController.showSettingsSidebar ? settingsSidebarWidth : 0)
+                .clipped()
+                .overlay(alignment: .leading) {
+                    if windowController.showSettingsSidebar {
+                        Rectangle()
+                            .fill(PanelChrome.border(style: windowController.chromeStyle))
+                            .frame(width: 0.5)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
