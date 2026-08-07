@@ -17,7 +17,12 @@ final class WindowController: ObservableObject {
     @Published var displayID: Int = 0
     /// Full menu-bar width by default (Unclutter shelf).
     @Published var widthPercent: Int = 100
-    @Published var heightPercent: Int = 45
+    /// Share of the screen height the panel takes when nothing has been chosen. Was
+    /// spelled out separately in the live value and the stored one; the resize handle
+    /// needs a third copy to reset to, so it became a constant.
+    static let defaultHeightPercent = 45
+
+    @Published var heightPercent: Int = WindowController.defaultHeightPercent
     @Published var panelWidth: CGFloat = 0
     @Published var chromeStyle: PanelChromeStyle = .unclutter
 
@@ -42,7 +47,7 @@ final class WindowController: ObservableObject {
 
     // Persisted
     @AppStorage("terminalWidthPercent") private var savedWidthPercent: Int = 100
-    @AppStorage("terminalHeightPercent") private var savedHeightPercent: Int = 45
+    @AppStorage("terminalHeightPercent") private var savedHeightPercent: Int = WindowController.defaultHeightPercent
     @AppStorage("selectedDisplayID") private var savedDisplayID: Int = 0
     @AppStorage("panelChromeStyle") private var savedChromeStyle: String = PanelChromeStyle.unclutter.rawValue
 

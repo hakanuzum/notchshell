@@ -258,6 +258,11 @@ struct TabBarView: View {
                 .fill(FolderTabPalette.barTopEdge)
                 .frame(height: 0.5)
         }
+        // Drawn last so its hit area sits above the bar, and centred because that is
+        // the one stretch holding neither tabs nor icons.
+        .overlay(alignment: .bottom) {
+            PanelResizeGrabber(windowController: windowController)
+        }
     }
 
     // MARK: - Classic dark top bar (fallback)
