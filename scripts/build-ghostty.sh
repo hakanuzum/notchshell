@@ -49,6 +49,16 @@ cd "$GHOSTTY_DIR"
 # Remove stale xcframework if it exists (xcodebuild -create-xcframework fails if output exists)
 rm -rf "$XCFRAMEWORK_DIR"
 
+# Build under a neutral cache path. Ghostty's C dependencies bake __FILE__ into
+# assertion messages, so whoever builds leaves their home directory inside the
+# shipped binary — the prebuilt library we used to link carried the original
+# author's username for exactly this reason. Pointing the cache somewhere
+# anonymous means the paths that survive identify nobody.
+export ZIG_GLOBAL_CACHE_DIR="${ZIG_GLOBAL_CACHE_DIR:-/private/tmp/notchshell-zig-cache}"
+export ZIG_LOCAL_CACHE_DIR="${ZIG_LOCAL_CACHE_DIR:-/private/tmp/notchshell-zig-cache/local}"
+mkdir -p "$ZIG_GLOBAL_CACHE_DIR" "$ZIG_LOCAL_CACHE_DIR"
+echo "Zig cache: $ZIG_GLOBAL_CACHE_DIR"
+
 zig build -Demit-xcframework=true -Demit-macos-app=false -Doptimize=ReleaseFast $TARGET_FLAG
 
 if [ ! -d "$XCFRAMEWORK_DIR" ]; then

@@ -30,6 +30,14 @@ for arg in "$@"; do
     esac
 done
 
+# libghostty is built from the pinned submodule rather than downloaded. The
+# xcframework used to be a symlink into another checkout on the original author's
+# machine, so a fresh clone could not build at all.
+if [ ! -d "$PROJECT_ROOT/vendor/ghostty/macos/GhosttyKit.xcframework" ]; then
+    echo "==> GhosttyKit.xcframework missing; building it first..."
+    "$SCRIPT_DIR/build-ghostty.sh"
+fi
+
 if [ "$UNIVERSAL" = 1 ]; then
     echo "==> Building universal release (arm64 + x86_64)..."
     swift build --build-system xcode -c release --arch arm64 --arch x86_64
