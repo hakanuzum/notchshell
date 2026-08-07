@@ -243,6 +243,18 @@ final class TabManager: ObservableObject {
         }
     }
 
+    /// Tell every surface in every tab whether the panel is on screen.
+    ///
+    /// All tabs, not just the active one: the panel dropping away hides all of them,
+    /// and restoring them all is what they were doing before this existed. Pausing
+    /// background tabs too would be a further win, but it belongs to tab selection
+    /// rather than to the panel.
+    func setSurfacesVisible(_ visible: Bool) {
+        for tab in tabs {
+            tab.paneManager?.setSurfacesVisible(visible)
+        }
+    }
+
     // MARK: - Tab State Persistence
 
     private static let savedTabsKey = "savedTabDirectories"

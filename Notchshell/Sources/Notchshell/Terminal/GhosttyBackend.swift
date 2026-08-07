@@ -180,6 +180,17 @@ final class GhosttyBackend: NSObject, TerminalBackend {
         retainedSelf = nil
     }
 
+    // MARK: - Visibility
+
+    /// Ghostty renders on its own thread, driven by a CVDisplayLink it owns. Ordering
+    /// the panel out does not reach it: measured with the window off screen, the
+    /// display link still ticked and `Renderer.updateFrame` still ran. This is the only
+    /// call that pauses it — the renderer redraws by itself when told it is back.
+    func setVisible(_ visible: Bool) {
+        guard let surface else { return }
+        ghostty_surface_set_occlusion(surface, visible)
+    }
+
     // MARK: - Styling
 
     func applyFont(_ font: NSFont) {

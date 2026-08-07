@@ -34,12 +34,17 @@ protocol TerminalBackend: AnyObject {
     // Split
     func createSplitBackend() -> TerminalBackend?
 
+    /// Whether this surface is on screen. A backend that renders on its own thread
+    /// has no way to know the panel dropped away, and keeps drawing until told.
+    func setVisible(_ visible: Bool)
+
     // Delegate
     var delegate: TerminalBackendDelegate? { get set }
 }
 
 extension TerminalBackend {
     func createSplitBackend() -> TerminalBackend? { nil }
+    func setVisible(_ visible: Bool) {}
 }
 
 protocol TerminalBackendDelegate: AnyObject {

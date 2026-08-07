@@ -87,10 +87,19 @@ final class WindowController: ObservableObject {
         setupMiddleClickMonitor()
         setupScrollMonitor()
 
-        // Panel is always visible at top of screen — SwiftUI content animates inside
+        // SwiftUI content animates inside a fixed full-screen frame, but the panel is
+        // only ordered in while it is actually on screen — see hide().
+        //
+        // Order in once at launch so the hosting view gets a layout pass and the first
+        // drop-down slides rather than pops, then drop it again.
         repositionPanel()
         panel.ignoresMouseEvents = true
         panel.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, self.state == .hidden else { return }
+            self.tabManager.setSurfacesVisible(false)
+            self.panel.orderOut(nil)
+        }
     }
 
     deinit {
@@ -482,6 +491,7 @@ final class WindowController: ObservableObject {
 
         panel.ignoresMouseEvents = false
         panel.makeKeyAndOrderFront(nil)
+        tabManager.setSurfacesVisible(true)
         NSApp.activate(ignoringOtherApps: true)
 
         // Defer animation by one run loop tick so the SwiftUI hosting view
@@ -514,10 +524,21 @@ final class WindowController: ObservableObject {
         }
         panel.ignoresMouseEvents = true
 
-        // After animation settles (or immediately) — activate previous app
+        // After the animation settles (or immediately) — report occlusion, order the
+        // panel out, and activate the previous app.
+        //
+        // The occlusion call is the one that matters. Collapsing the SwiftUI content
+        // to zero height leaves Ghostty rendering, and so does `orderOut`: sampled
+        // with the window off screen, its CVDisplayLink still ticked and
+        // `Renderer.updateFrame` still ran. Telling the surfaces directly took a
+        // full-width panel from 227 MB and ~1.2% CPU while down to 106 MB and ~0.0%.
+        // `orderOut` bought nothing measurable; it is kept so that `panel.isVisible`
+        // answers honestly, which the click monitor's `NSApp.windows` scan relies on.
         let delay = UserDefaults.standard.bool(forKey: "disableAnimation") ? 0.05 : 0.5
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.state == .hidden else { return }
+            self.tabManager.setSurfacesVisible(false)
+            self.panel.orderOut(nil)
             if let prev = self.previousApp, !prev.isTerminated {
                 prev.activate()
             }

@@ -35,6 +35,14 @@ final class PaneManager: ObservableObject {
         instances[paneID]
     }
 
+    /// Tell every pane in this tab whether it is on screen — splits included, since a
+    /// hidden panel hides all of them at once.
+    func setSurfacesVisible(_ visible: Bool) {
+        for instance in instances.values {
+            instance.backend.setVisible(visible)
+        }
+    }
+
     var focusedBackend: TerminalBackend? {
         rootPane.backend(for: focusedPaneID)
     }
