@@ -11,6 +11,9 @@ enum PanelState: Equatable {
 final class WindowController: ObservableObject {
     let panel: TerminalPanel
     let tabManager: TabManager
+    /// Owned here because it records this controller's window and has to outlive any
+    /// view that starts it.
+    let recorder = PanelRecorder()
 
     @Published var state: PanelState = .hidden
     @Published var isPinned: Bool = false
@@ -55,6 +58,42 @@ final class WindowController: ObservableObject {
 
     /// Cached width — set before animation so only height animates (slide down).
     var cachedWidth: CGFloat = 0
+
+    /// Height of the menu bar on the screen the panel is on.
+    ///
+    /// Both figures matter: a notched display reports the notch through
+    /// `safeAreaInsets` and the menu bar through the frame difference, and they are not
+    /// the same number.
+    var menuBarHeight: CGFloat {
+        let screen = resolvedScreen
+        return max(screen.frame.maxY - screen.visibleFrame.maxY, screen.safeAreaInsets.top)
+    }
+
+    /// The tab bar is drawn the same height as the menu bar, so the shelf is bracketed
+    /// by two strips of the same weight.
+    var tabBarHeight: CGFloat { menuBarHeight }
+
+    /// The terminal area of the active tab, in window coordinates with a top-left
+    /// origin and measured in points — the shape ScreenCaptureKit's `sourceRect` wants.
+    ///
+    /// Measured rather than assumed: a capture cropped to a rect starting at the menu
+    /// bar height returned the band directly below it, so `sourceRect` on a window
+    /// filter is relative to the window's top-left, not AppKit's bottom-left.
+    ///
+    /// Excludes the tab bar, which sits below the terminal in the light chrome and
+    /// above it in the dark one.
+    var terminalContentRect: CGRect {
+        let size = terminalSize
+        let bar = tabBarHeight
+        let softChrome = PanelChrome.isSoftLight(chromeStyle)
+        let windowWidth = panel.frame.width > 0 ? panel.frame.width : size.width
+        return CGRect(
+            x: ((windowWidth - size.width) / 2).rounded(),
+            y: (menuBarHeight + (softChrome ? 0 : bar)).rounded(),
+            width: size.width.rounded(),
+            height: max(size.height - bar, 1).rounded()
+        )
+    }
 
     var terminalSize: CGSize {
         let screen = resolvedScreen.frame

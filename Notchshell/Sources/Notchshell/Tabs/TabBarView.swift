@@ -33,13 +33,7 @@ struct TabBarView: View {
         PanelChrome.isSoftLight(chrome)
     }
 
-    /// The bar matches the menu bar's height, so the shelf is bracketed by two strips
-    /// of the same weight. Both figures matter: a notched display reports the notch
-    /// through `safeAreaInsets` and the menu bar through the frame difference.
-    private var barHeight: CGFloat {
-        let screen = windowController.resolvedScreen
-        return max(screen.frame.maxY - screen.visibleFrame.maxY, screen.safeAreaInsets.top)
-    }
+    private var barHeight: CGFloat { windowController.tabBarHeight }
 
     private var tabHeight: CGFloat {
         max(barHeight - FolderTab.barMargin, 20)
@@ -159,6 +153,8 @@ struct TabBarView: View {
                         windowController.beginTransientInteraction(seconds: 0.8)
                     }
                 }
+
+                RecordButton(windowController: windowController, recorder: windowController.recorder)
 
                 // Opacity — the icon is the overlapping-discs mark that means exactly
                 // this, and the striped half is what a translucent surface looks like.

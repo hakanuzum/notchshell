@@ -48,7 +48,23 @@ does not nag — it is documented where someone hits the wall instead.
 **Accessibility** is for controlling other applications. This app has no reason to,
 and asking for it would be a red flag on a terminal.
 
-**Screen Recording** likewise: not needed, not asked for.
+**Screen Recording** is asked for, but only when the user presses record.
+
+This used to say "not needed, not asked for", and the reasoning behind that still
+holds — a terminal that asks to record your screen on launch has no good answer
+for why. Asking at the moment the user requests a recording does: the request is
+the thing they just asked for, and every other part of the app works without it.
+Nothing prompts, nags or degrades until that button is pressed.
+
+There is no `NSUsageDescription` key for this one — macOS writes the prompt text
+itself — so unlike the keys above there is nothing here to get wrong, and nothing
+to explain ourselves with either. That is a second reason the timing has to carry
+the explanation. The request goes through `CGRequestScreenCaptureAccess`.
+
+A first grant does not reach the running process: macOS hands screen capture to an
+app at launch, so a user who grants it mid-session is still denied until they
+relaunch. `PanelRecorder` reports that case separately rather than leaving a record
+button that silently does nothing.
 
 ## Ad-hoc signing loses grants on every rebuild
 

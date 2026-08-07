@@ -31,12 +31,7 @@ struct PanelContentView: View {
         isVisible ? fullHeight : 0
     }
 
-    private var menuBarHeight: CGFloat {
-        let screen = windowController.resolvedScreen
-        let fromFrame = screen.frame.maxY - screen.visibleFrame.maxY
-        let safeTop = screen.safeAreaInsets.top
-        return max(fromFrame, safeTop)
-    }
+    private var menuBarHeight: CGFloat { windowController.menuBarHeight }
 
     private var clipShape: UnevenRoundedRectangle {
         PanelChrome.clipShape()
