@@ -6,9 +6,10 @@
 
 **One hotkey. The terminal is already open.**
 
-A drop-down terminal for macOS. Press `⌥ Space` anywhere and it slides down over
-whatever you were doing; press it again and it is gone. The terminal itself is
-[Ghostty](https://ghostty.org) — GPU-rendered, true colour, ligatures.
+A native drop-down terminal for macOS — Swift and AppKit, no Electron, no web view.
+Press `⌥ Space` anywhere and it slides down over whatever you were doing; press it
+again and it is gone. The terminal itself is [Ghostty](https://ghostty.org) —
+GPU-rendered on Metal, true colour, ligatures.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
 ![Swift 5.10](https://img.shields.io/badge/Swift-5.10-F05138?logo=swift&logoColor=white)
