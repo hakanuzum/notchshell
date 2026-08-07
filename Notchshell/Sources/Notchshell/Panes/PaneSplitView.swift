@@ -8,6 +8,10 @@ struct PaneSplitView: View {
     @ObservedObject var tabManager: TabManager
     var theme: TerminalTheme
 
+    /// The split ratio at the moment a divider drag began, so the drag can be measured
+    /// as a translation from it rather than from the divider's shifting position.
+    @State private var dragStartRatio: CGFloat? = nil
+
     /// Root init — reads paneManager.rootPane directly so ForEach cache doesn't stale it.
     init(paneManager: PaneManager, tabManager: TabManager, theme: TerminalTheme) {
         self.explicitNode = nil
@@ -84,10 +88,19 @@ struct PaneSplitView: View {
                         SplitDivider(axis: .horizontal)
                             .gesture(DragGesture()
                                 .onChanged { value in
-                                    let newRatio = value.location.x / geo.size.width
-                                    let clamped = min(max(newRatio, minPaneSize / geo.size.width), 1 - minPaneSize / geo.size.width)
+                                    // Drive the ratio from the drag's translation off a
+                                    // captured start, not value.location. location is in
+                                    // the divider's own frame, and the divider moves as
+                                    // the ratio changes — so reading it fed the divider's
+                                    // motion back into the ratio and the split juddered.
+                                    let start = dragStartRatio ?? ratio
+                                    if dragStartRatio == nil { dragStartRatio = ratio }
+                                    let delta = value.translation.width / geo.size.width
+                                    let clamped = min(max(start + delta, minPaneSize / geo.size.width),
+                                                      1 - minPaneSize / geo.size.width)
                                     paneManager.updateSplitRatio(splitID: splitID, ratio: clamped)
                                 }
+                                .onEnded { _ in dragStartRatio = nil }
                             )
                             .onTapGesture(count: 2) {
                                 paneManager.updateSplitRatio(splitID: splitID, ratio: 0.5)
@@ -104,10 +117,14 @@ struct PaneSplitView: View {
                         SplitDivider(axis: .vertical)
                             .gesture(DragGesture()
                                 .onChanged { value in
-                                    let newRatio = value.location.y / geo.size.height
-                                    let clamped = min(max(newRatio, minPaneSize / geo.size.height), 1 - minPaneSize / geo.size.height)
+                                    let start = dragStartRatio ?? ratio
+                                    if dragStartRatio == nil { dragStartRatio = ratio }
+                                    let delta = value.translation.height / geo.size.height
+                                    let clamped = min(max(start + delta, minPaneSize / geo.size.height),
+                                                      1 - minPaneSize / geo.size.height)
                                     paneManager.updateSplitRatio(splitID: splitID, ratio: clamped)
                                 }
+                                .onEnded { _ in dragStartRatio = nil }
                             )
                             .onTapGesture(count: 2) {
                                 paneManager.updateSplitRatio(splitID: splitID, ratio: 0.5)
