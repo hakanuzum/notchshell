@@ -13,8 +13,12 @@ struct VerticalSlider: View {
     var onEditingChanged: (Bool) -> Void = { _ in }
 
     var height: CGFloat = 132
-    var trackWidth: CGFloat = 5
-    var knobSize: CGFloat = 17
+    var trackWidth: CGFloat = 7
+    /// The knob is a capsule elongated *along* the track, not a circle. Turned
+    /// vertical that means taller than it is wide — a circle is the one shape that
+    /// looks identical whichever way the slider runs, which is why it reads as wrong.
+    var knobWidth: CGFloat = 21
+    var knobHeight: CGFloat = 29
 
     private var fraction: Double {
         let span = range.upperBound - range.lowerBound
@@ -24,32 +28,31 @@ struct VerticalSlider: View {
 
     /// Distance the knob's centre can travel. The knob has to stay inside the track,
     /// so the ends are half a knob short of the full height.
-    private var travel: CGFloat { max(height - knobSize, 1) }
+    private var travel: CGFloat { max(height - knobHeight, 1) }
 
     private var knobCentreY: CGFloat {
-        knobSize / 2 + travel * (1 - fraction)
+        knobHeight / 2 + travel * (1 - fraction)
     }
 
     var body: some View {
         ZStack(alignment: .top) {
             Capsule()
-                .fill(Color.primary.opacity(0.13))
+                .fill(Self.trackColor)
                 .frame(width: trackWidth, height: height)
 
             // Filled portion runs from the knob down, so "more" reads as "fuller".
             Capsule()
-                .fill(Color.accentColor.opacity(0.75))
+                .fill(Self.fillColor)
                 .frame(width: trackWidth, height: max(height - knobCentreY, 0))
                 .offset(y: knobCentreY)
 
-            Circle()
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(Circle().strokeBorder(Color.primary.opacity(0.22), lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.20), radius: 1.5, y: 1)
-                .frame(width: knobSize, height: knobSize)
-                .offset(y: knobCentreY - knobSize / 2)
+            Capsule()
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.22), radius: 3, y: 1.5)
+                .frame(width: knobWidth, height: knobHeight)
+                .offset(y: knobCentreY - knobHeight / 2)
         }
-        .frame(width: max(knobSize, trackWidth) + 12, height: height)
+        .frame(width: max(knobWidth, trackWidth) + 14, height: height)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -64,8 +67,14 @@ struct VerticalSlider: View {
         )
     }
 
+    private static let trackColor = Color(nsColor: NSColor(calibratedWhite: 0.89, alpha: 1))
+    /// A literal blue rather than `controlAccentColor`: a dynamic system colour stored
+    /// in a `static let` resolves once, outside any appearance context, and came back
+    /// grey. The slider is drawn on the app's own light chrome either way.
+    private static let fillColor = Color(red: 0.13, green: 0.48, blue: 0.97)
+
     private func setFromPoint(_ y: CGFloat) {
-        let clamped = min(max(y - knobSize / 2, 0), travel)
+        let clamped = min(max(y - knobHeight / 2, 0), travel)
         let newFraction = 1 - Double(clamped / travel)
         value = range.lowerBound + newFraction * (range.upperBound - range.lowerBound)
     }
