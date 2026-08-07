@@ -16,6 +16,11 @@ if [ ! -d "$GHOSTTY_DIR/.git" ] && [ ! -f "$GHOSTTY_DIR/.git" ]; then
     exit 1
 fi
 
+# Ghostty's renderer is Metal, and `xcrun metal` only exists under a full Xcode.
+# Without this the build gets all the way to shader compilation before failing with
+# "unable to find utility metal".
+source "$SCRIPT_DIR/_toolchain.sh"
+
 ZIG_015="$(brew --prefix zig@0.15 2>/dev/null)/bin/zig"
 if [ -x "$ZIG_015" ]; then
     export PATH="$(dirname "$ZIG_015"):$PATH"
@@ -24,8 +29,17 @@ elif ! command -v zig &>/dev/null; then
     exit 1
 fi
 
-# Get current submodule SHA
-CURRENT_SHA=$(cd "$GHOSTTY_DIR" && git rev-parse HEAD)
+# Cache key: the submodule commit *and* everything of ours that shapes the build.
+# Keying on the commit alone meant editing a patch or this script left a stale
+# library in place with no indication — it had to be busted by hand three times
+# while the patches were being written.
+CURRENT_SHA=$(
+    {
+        cd "$GHOSTTY_DIR" && git rev-parse HEAD
+        cat "$PROJECT_ROOT"/vendor/ghostty-patches/*.patch 2>/dev/null
+        cat "$SCRIPT_DIR/build-ghostty.sh"
+    } | shasum -a 256 | cut -d' ' -f1
+)
 
 # Check cache
 if [ -f "$CACHE_FILE" ] && [ -d "$XCFRAMEWORK_DIR" ]; then
@@ -44,10 +58,57 @@ else
     echo "Building GhosttyKit.xcframework [native] (SHA: ${CURRENT_SHA:0:12})..."
 fi
 
-cd "$GHOSTTY_DIR"
+# Build from a copy at a fixed, anonymous path rather than from the submodule where
+# it sits. Zig bakes the source root into the objects it produces, so building in
+# place stamps whoever ran it into the shipped binary — swapping one person's home
+# directory for another's is not a fix. From here every build embeds the same paths
+# regardless of who or where.
+#
+# The copy also means the patches below are applied to a throwaway tree, so the
+# submodule is never modified and cannot be left dirty by an interrupted build.
+STAGE_ROOT="${NOTCHSHELL_BUILD_ROOT:-/private/tmp/notchshell-build}"
+STAGE="$STAGE_ROOT/ghostty"
+echo "Staging source at $STAGE..."
+mkdir -p "$STAGE"
+rsync -a --delete \
+    --exclude '.git' --exclude '.zig-cache' --exclude 'macos/GhosttyKit.xcframework' \
+    "$GHOSTTY_DIR/" "$STAGE/"
 
-# Remove stale xcframework if it exists (xcodebuild -create-xcframework fails if output exists)
-rm -rf "$XCFRAMEWORK_DIR"
+cd "$STAGE"
+
+# Apply local patches, and undo them however this exits so the submodule stays a
+# clean checkout of the pinned tag. See vendor/ghostty-patches/README.md.
+# xcodebuild -create-xcframework refuses to overwrite, so the old one has to go —
+# but move it aside rather than delete it. A failed build used to leave no
+# xcframework at all, which breaks `swift build` for the whole project until one is
+# rebuilt or downloaded. Restored on failure, discarded on success.
+SALVAGE=""
+if [ -d "$XCFRAMEWORK_DIR" ]; then
+    SALVAGE="$(mktemp -d)/GhosttyKit.xcframework"
+    mv "$XCFRAMEWORK_DIR" "$SALVAGE"
+fi
+restore_previous() {
+    if [ -n "$SALVAGE" ] && [ -d "$SALVAGE" ] && [ ! -d "$XCFRAMEWORK_DIR" ]; then
+        mkdir -p "$(dirname "$XCFRAMEWORK_DIR")"
+        mv "$SALVAGE" "$XCFRAMEWORK_DIR"
+        echo "Build failed — restored the previous xcframework." >&2
+    fi
+}
+
+PATCH_DIR="$PROJECT_ROOT/vendor/ghostty-patches"
+trap restore_previous EXIT
+for patch in "$PATCH_DIR"/*.patch; do
+    [ -f "$patch" ] || continue
+    # Applied to the staging copy, which is discarded — the submodule stays clean.
+    if ! git apply --check --unsafe-paths --directory=. "$patch" 2>/dev/null \
+        && ! patch -p1 --dry-run -s -i "$patch" >/dev/null 2>&1; then
+        echo "Error: $(basename "$patch") does not apply to the pinned submodule." >&2
+        echo "Ghostty may have fixed it upstream — see $PATCH_DIR/README.md." >&2
+        exit 1
+    fi
+    patch -p1 -s -i "$patch"
+    echo "Applied $(basename "$patch")"
+done
 
 # Build under a neutral cache path. Ghostty's C dependencies bake __FILE__ into
 # assertion messages, so whoever builds leaves their home directory inside the
@@ -61,10 +122,14 @@ echo "Zig cache: $ZIG_GLOBAL_CACHE_DIR"
 
 zig build -Demit-xcframework=true -Demit-macos-app=false -Doptimize=ReleaseFast $TARGET_FLAG
 
-if [ ! -d "$XCFRAMEWORK_DIR" ]; then
-    echo "Error: xcframework not found at $XCFRAMEWORK_DIR after build."
+STAGE_XCFRAMEWORK="$STAGE/macos/GhosttyKit.xcframework"
+if [ ! -d "$STAGE_XCFRAMEWORK" ]; then
+    echo "Error: xcframework not found at $STAGE_XCFRAMEWORK after build."
     exit 1
 fi
+mkdir -p "$(dirname "$XCFRAMEWORK_DIR")"
+rm -rf "$XCFRAMEWORK_DIR"
+cp -R "$STAGE_XCFRAMEWORK" "$XCFRAMEWORK_DIR"
 
 # Xcode 26 libtool (cctools_ld-1267) silently drops .o files that aren't
 # 8-byte aligned; zig 0.15.x emits misaligned objects. Rebuild each
@@ -81,7 +146,7 @@ rebuild_from_cache() {
     local merge_dir
     merge_dir=$(mktemp -d)
 
-    for archive in "$GHOSTTY_DIR"/.zig-cache/o/*/lib*.a; do
+    for archive in "$ZIG_LOCAL_CACHE_DIR"/o/*/lib*.a; do
         [ -f "$archive" ] || continue
         base=$(basename "$archive")
         [ "$base" = "libghostty-fat.a" ] && continue
