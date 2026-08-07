@@ -113,11 +113,14 @@ final class TerminalInstance: NSObject, TerminalBackendDelegate {
         return saved
     }
 
-    func startShell(in directory: String? = nil) {
+    func startShell(in directory: String? = nil, environment: [String: String] = [:]) {
         guard !isTerminated else { return }
         let shell = Self.configuredShell
         let shellName = "-" + (shell as NSString).lastPathComponent
-        backend.startProcess(executable: shell, execName: shellName, currentDirectory: directory)
+        backend.startProcess(
+            executable: shell, execName: shellName,
+            currentDirectory: directory, environment: environment
+        )
     }
 
     func terminate() {

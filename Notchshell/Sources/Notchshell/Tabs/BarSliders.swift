@@ -131,6 +131,9 @@ struct TrafficLightClose: View {
     let isTabActive: Bool
     let action: () -> Void
 
+    /// Also the size of the agent mark at the other end of a tab, so the two balance.
+    static let diameter: CGFloat = 12
+
     private static let liveRed = Color(red: 1.0, green: 0.37, blue: 0.34)
     private static let dormant = Color(nsColor: NSColor(calibratedWhite: 0.76, alpha: 1))
 
@@ -147,7 +150,7 @@ struct TrafficLightClose: View {
                         .foregroundColor(Color.black.opacity(0.55))
                 }
             }
-            .frame(width: 12, height: 12)
+            .frame(width: Self.diameter, height: Self.diameter)
             .contentShape(Circle())
         }
         .buttonStyle(.plain)

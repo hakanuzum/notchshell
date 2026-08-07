@@ -11,6 +11,11 @@ final class GhosttyBackend: NSObject, TerminalBackend {
     /// Prevents transparent pixels from the Ghostty renderer bleeding through.
     private let containerView: NSView
     private var retainedSelf: Unmanaged<GhosttyBackend>?
+    /// Kept so splits can be given the same variables. `ghostty_surface_inherited_config`
+    /// carries the parent's *derived* config, not the env vars that were handed to
+    /// `ghostty_surface_new` — a split would otherwise start with an unmarked shell and
+    /// its pane would never be attributed to a tab.
+    private var environment: [String: String] = [:]
     weak var delegate: TerminalBackendDelegate?
 
     var view: NSView { containerView }
@@ -70,7 +75,12 @@ final class GhosttyBackend: NSObject, TerminalBackend {
             ?? NSScreen.main?.backingScaleFactor ?? 2.0
         config.scale_factor = Double(scale)
 
-        newBackend.surface = ghostty_surface_new(app, &config)
+        newBackend.environment = environment
+        withEnvVars(environment) { vars, count in
+            config.env_vars = vars
+            config.env_var_count = count
+            newBackend.surface = ghostty_surface_new(app, &config)
+        }
         guard newBackend.surface != nil else {
             os_log(.error, log: log, "Failed to create split surface")
             retained.release()
@@ -99,7 +109,11 @@ final class GhosttyBackend: NSObject, TerminalBackend {
 
     // MARK: - Process lifecycle
 
-    func startProcess(executable: String, execName: String, currentDirectory: String?) {
+    func startProcess(
+        executable: String, execName: String, currentDirectory: String?,
+        environment: [String: String]
+    ) {
+        self.environment = environment
         guard let app = GhosttyApp.shared.app else {
             os_log(.error, log: log, "Cannot create surface: GhosttyApp not initialized")
             return
@@ -129,16 +143,21 @@ final class GhosttyBackend: NSObject, TerminalBackend {
         let commandStr = executable
         let cwdStr = currentDirectory
 
-        commandStr.withCString { cmdPtr in
-            surfaceConfig.command = cmdPtr
+        withEnvVars(environment) { vars, count in
+            surfaceConfig.env_vars = vars
+            surfaceConfig.env_var_count = count
 
-            if let cwd = cwdStr, !cwd.isEmpty {
-                cwd.withCString { cwdPtr in
-                    surfaceConfig.working_directory = cwdPtr
+            commandStr.withCString { cmdPtr in
+                surfaceConfig.command = cmdPtr
+
+                if let cwd = cwdStr, !cwd.isEmpty {
+                    cwd.withCString { cwdPtr in
+                        surfaceConfig.working_directory = cwdPtr
+                        self.surface = ghostty_surface_new(app, &surfaceConfig)
+                    }
+                } else {
                     self.surface = ghostty_surface_new(app, &surfaceConfig)
                 }
-            } else {
-                self.surface = ghostty_surface_new(app, &surfaceConfig)
             }
         }
 
@@ -419,4 +438,28 @@ final class GhosttyBackend: NSObject, TerminalBackend {
             NSCursor.arrow.set()
         }
     }
+}
+
+/// Hand a dictionary to `ghostty_surface_config_s` as a `ghostty_env_var_s` array.
+///
+/// The strings have to outlive `ghostty_surface_new`, which copies them into the
+/// config's arena; `withCString` nests one variable at a time and does not scale to a
+/// dictionary, so these are duplicated and freed on the way out.
+private func withEnvVars<T>(
+    _ environment: [String: String],
+    _ body: (UnsafeMutablePointer<ghostty_env_var_s>?, Int) -> T
+) -> T {
+    guard !environment.isEmpty else { return body(nil, 0) }
+
+    var allocations: [UnsafeMutablePointer<CChar>] = []
+    defer { allocations.forEach { free($0) } }
+
+    var vars: [ghostty_env_var_s] = []
+    for (key, value) in environment {
+        guard let keyPtr = strdup(key), let valuePtr = strdup(value) else { continue }
+        allocations.append(keyPtr)
+        allocations.append(valuePtr)
+        vars.append(ghostty_env_var_s(key: UnsafePointer(keyPtr), value: UnsafePointer(valuePtr)))
+    }
+    return vars.withUnsafeMutableBufferPointer { body($0.baseAddress, $0.count) }
 }

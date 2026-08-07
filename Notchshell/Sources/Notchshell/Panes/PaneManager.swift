@@ -23,15 +23,28 @@ final class PaneManager: ObservableObject {
     /// Called when the last pane is closed.
     var onLastPaneClosed: (() -> Void)?
 
-    init(directory: String? = nil) {
+    /// The tab this pane tree belongs to, stamped into every shell's environment.
+    ///
+    /// It is the only thing tying a process back to a tab: libghostty exposes no pid
+    /// for a surface, so there is nothing else to match on. Split surfaces inherit it
+    /// through `GhosttyBackend`, so every pane of a tab reports the same id.
+    let tabID: String?
+
+    init(directory: String? = nil, tabID: String? = nil) {
+        self.tabID = tabID
         let instance = TerminalInstance()
         let id = generateShortID()
         self.rootPane = .leaf(id: id, backend: instance.backend)
         self.focusedPaneID = id
         setupCallbacks(for: id, instance: instance)
-        instance.startShell(in: directory)
+        instance.startShell(in: directory, environment: PaneManager.environment(tabID: tabID))
         // Keep instance alive — stored via backend reference
         instances[id] = instance
+    }
+
+    static func environment(tabID: String?) -> [String: String] {
+        guard let tabID, !tabID.isEmpty else { return [:] }
+        return [AgentScanner.tabIDEnvVar: tabID]
     }
 
     /// Tracks TerminalInstance per pane for lifecycle (title, directory, process exit)

@@ -11,7 +11,12 @@ protocol TerminalBackend: AnyObject {
     var focusableView: NSView { get }
 
     // Process lifecycle
-    func startProcess(executable: String, execName: String, currentDirectory: String?)
+    /// `environment` is added to the spawned process's environment and inherited by
+    /// everything it runs — which is how a tab is identified in the process tree.
+    func startProcess(
+        executable: String, execName: String, currentDirectory: String?,
+        environment: [String: String]
+    )
     func terminate()
 
     // Styling
@@ -45,6 +50,15 @@ protocol TerminalBackend: AnyObject {
 extension TerminalBackend {
     func createSplitBackend() -> TerminalBackend? { nil }
     func setVisible(_ visible: Bool) {}
+
+    /// A protocol requirement cannot carry a default argument, so the three-argument
+    /// form callers already use lives here instead.
+    func startProcess(executable: String, execName: String, currentDirectory: String?) {
+        startProcess(
+            executable: executable, execName: execName,
+            currentDirectory: currentDirectory, environment: [:]
+        )
+    }
 }
 
 protocol TerminalBackendDelegate: AnyObject {

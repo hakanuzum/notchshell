@@ -81,6 +81,8 @@ struct FolderTabOutline: Shape {
 struct FolderTab: View {
     let title: String
     let kind: Tab.TabKind
+    /// The agent CLI running in this tab, if any.
+    var agent: AgentKind?
     let isActive: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
@@ -103,11 +105,16 @@ struct FolderTab: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
+        // 6, not 4: the name needs to sit clear of the mark on its left and the close
+        // dot on its right, or the three read as one run of glyphs.
+        HStack(spacing: 6) {
             if kind == .settings {
                 Image(systemName: "gearshape").font(.system(size: 9))
             } else if kind == .help {
                 Image(systemName: "questionmark.circle").font(.system(size: 9))
+            } else if let agent {
+                // Matches TrafficLightClose, so the two ends of the tab weigh the same.
+                AgentBadge(agent: agent, size: TrafficLightClose.diameter)
             }
             Text(title)
                 .font(.system(size: 11, weight: isActive ? .semibold : .regular))

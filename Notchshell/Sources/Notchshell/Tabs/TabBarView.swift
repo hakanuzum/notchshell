@@ -67,6 +67,7 @@ struct TabBarView: View {
                         FolderTab(
                             title: shortTitle(tab.displayTitle),
                             kind: tab.kind,
+                            agent: tabManager.agents[tab.id],
                             isActive: index == tabManager.activeTabIndex,
                             onSelect: { tabManager.selectTab(at: index) },
                             onClose: { tabManager.closeTab(id: tab.id) },
@@ -280,6 +281,7 @@ struct TabBarView: View {
                                     index: index + 1,
                                     title: shortTitle(tab.displayTitle),
                                     kind: tab.kind,
+                                    agent: tabManager.agents[tab.id],
                                     isActive: index == tabManager.activeTabIndex,
                                     hasCustomTitle: tab.customTitle != nil,
                                     isEditing: Binding(
@@ -411,6 +413,8 @@ struct TabItemView: View {
     let index: Int
     let title: String
     let kind: Tab.TabKind
+    /// The agent CLI running in this tab, if any.
+    var agent: AgentKind?
     let isActive: Bool
     let hasCustomTitle: Bool
     @Binding var isEditing: Bool
@@ -432,12 +436,17 @@ struct TabItemView: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            HStack(spacing: 4) {
+        // 6, not 4: the name needs to sit clear of the mark on its left and the close
+        // button on its right, or the three read as one run of glyphs.
+        HStack(spacing: 6) {
+            HStack(spacing: 6) {
                 if let icon {
                     Image(systemName: icon)
                         .font(.system(size: 10))
                         .foregroundColor(isActive ? .primary : .secondary)
+                } else if let agent {
+                    // Matches the close button's 14pt hit frame on the other end.
+                    AgentBadge(agent: agent, size: 14)
                 }
                 if isEditing {
                     TextField("Tab name", text: $editText, onCommit: {
@@ -610,6 +619,8 @@ struct TabListPopover: View {
                         Image(systemName: tab.kind == .settings ? "gearshape" : "questionmark.circle")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
+                    } else if let agent = tabManager.agents[tab.id] {
+                        AgentBadge(agent: agent, size: 13)
                     }
                     Text(tab.displayTitle)
                         .font(.system(size: 12))

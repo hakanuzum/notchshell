@@ -39,9 +39,10 @@ struct Tab: Identifiable {
 
     /// Terminal tab
     init(directory: String? = nil) {
-        self.id = generateShortID()
+        let id = generateShortID()
+        self.id = id
         self.kind = .terminal
-        self.paneManager = PaneManager(directory: directory)
+        self.paneManager = PaneManager(directory: directory, tabID: id)
         self.title = "zsh"
         self.directoryTitle = directory.flatMap(Tab.name(forDirectory:))
     }
@@ -61,6 +62,12 @@ final class TabManager: ObservableObject {
     @Published var activeTabIndex: Int = 0
     @Published var hoveredTabIndex: Int? = nil
     @Published var editingTabID: String? = nil
+    /// Tab id → the agent CLI running in it, refreshed by `agentMonitor` while the
+    /// panel is on screen. Empty is the normal state; a tab without an entry shows
+    /// no badge.
+    @Published var agents: [String: AgentKind] = [:]
+
+    private let agentMonitor = AgentMonitor()
 
     /// Stack of directories from recently closed tabs (for ⌘⇧T reopen)
     private var closedTabDirectories: [String] = []
@@ -86,6 +93,9 @@ final class TabManager: ObservableObject {
             guard let self, let axis = notif.userInfo?["axis"] as? String,
                   let pm = self.activeTab?.paneManager else { return }
             pm.splitFocusedPane(axis: axis == "horizontal" ? .horizontal : .vertical)
+        }
+        agentMonitor.onChange = { [weak self] agents in
+            self?.agents = agents
         }
     }
 
@@ -278,6 +288,9 @@ final class TabManager: ObservableObject {
         for tab in tabs {
             tab.paneManager?.setSurfacesVisible(visible)
         }
+        // The agent scan rides the same signal for the same reason: a panel that is
+        // down is meant to cost nothing.
+        agentMonitor.setActive(visible)
     }
 
     // MARK: - Tab State Persistence
