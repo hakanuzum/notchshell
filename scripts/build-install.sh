@@ -78,6 +78,20 @@ cp -R "$PROJECT_ROOT/vendor/themes/themes/." "$GHOSTTY_RES_DIR/themes/"
 cp "$PROJECT_ROOT/vendor/themes/LICENSE" "$GHOSTTY_RES_DIR/THEMES-LICENSE"
 echo "    $(find "$GHOSTTY_RES_DIR/themes" -type f | wc -l | tr -d ' ') themes"
 
+echo "==> Copying shell integration..."
+# Ghostty's `shell-integration = detect` injects OSC 7 (working directory) and OSC 133
+# (prompt marks) into bash/zsh/fish by sourcing scripts it finds under
+# <resources-dir>/shell-integration. Without them nothing is injected: the shell never
+# reports where it is, GHOSTTY_ACTION_PWD never fires, and a tab cannot follow `cd` —
+# it was left showing whatever the prompt happened to write as the window title. The
+# scripts are copied from the submodule source (git-tracked, always present) rather
+# than zig-out, which is a build artifact and may be absent on a fresh checkout.
+rm -rf "$GHOSTTY_RES_DIR/shell-integration"
+mkdir -p "$GHOSTTY_RES_DIR/shell-integration"
+cp -R "$PROJECT_ROOT/vendor/ghostty/src/shell-integration/." "$GHOSTTY_RES_DIR/shell-integration/"
+rm -f "$GHOSTTY_RES_DIR/shell-integration/README.md"
+echo "    $(find "$GHOSTTY_RES_DIR/shell-integration" -type d -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ') shells"
+
 echo "==> Copying command line tool..."
 # Lives beside the app binary, the way Ghostty ships its own CLI. Settings links it
 # onto PATH; keeping the real file in the bundle means the link survives updates and
