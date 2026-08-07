@@ -131,22 +131,24 @@ struct SettingsView: View {
                 apply(.fontFamily, fontFamily.isEmpty ? nil : fontFamily)
             }
 
-            Picker("Cursor", selection: $cursorStyle) {
-                ForEach(TerminalAppearanceSettings.cursorStyles, id: \.self) { style in
-                    Text(style.capitalized).tag(style)
+            segmentedRow("Cursor") {
+                Picker("Cursor", selection: $cursorStyle) {
+                    ForEach(TerminalAppearanceSettings.cursorStyles, id: \.self) { style in
+                        Text(style.capitalized).tag(style)
+                    }
                 }
+                .onChange(of: cursorStyle) { apply(.cursorStyle, cursorStyle) }
             }
-            .pickerStyle(.segmented)
-            .onChange(of: cursorStyle) { apply(.cursorStyle, cursorStyle) }
 
-            Picker("Blur", selection: $blurRadius) {
-                ForEach(Self.blurChoices, id: \.value) { choice in
-                    Text(choice.label).tag(choice.value)
+            segmentedRow("Blur") {
+                Picker("Blur", selection: $blurRadius) {
+                    ForEach(Self.blurChoices, id: \.value) { choice in
+                        Text(choice.label).tag(choice.value)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: blurRadius) {
-                apply(.backgroundBlurRadius, blurRadius == 0 ? nil : String(blurRadius))
+                .onChange(of: blurRadius) {
+                    apply(.backgroundBlurRadius, blurRadius == 0 ? nil : String(blurRadius))
+                }
             }
 
             // The palette button sets one theme. Only a pair needs this.
@@ -254,25 +256,27 @@ struct SettingsView: View {
 
     private var panel: some View {
         Section {
-            Picker("Chrome", selection: Binding(
-                get: { windowController.chromeStyle },
-                set: { windowController.setChromeStyle($0) }
-            )) {
-                ForEach(PanelChromeStyle.allCases) { style in
-                    Text(style.displayName).tag(style)
+            segmentedRow("Chrome") {
+                Picker("Chrome", selection: Binding(
+                    get: { windowController.chromeStyle },
+                    set: { windowController.setChromeStyle($0) }
+                )) {
+                    ForEach(PanelChromeStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
                 }
             }
-            .pickerStyle(.segmented)
 
-            Picker("Width", selection: Binding(
-                get: { Self.widthChoices.min(by: {
-                    abs($0 - windowController.widthPercent) < abs($1 - windowController.widthPercent)
-                }) ?? 100 },
-                set: { windowController.setWidthPercent($0) }
-            )) {
-                ForEach(Self.widthChoices, id: \.self) { Text("\($0)%").tag($0) }
+            segmentedRow("Width") {
+                Picker("Width", selection: Binding(
+                    get: { Self.widthChoices.min(by: {
+                        abs($0 - windowController.widthPercent) < abs($1 - windowController.widthPercent)
+                    }) ?? 100 },
+                    set: { windowController.setWidthPercent($0) }
+                )) {
+                    ForEach(Self.widthChoices, id: \.self) { Text("\($0)%").tag($0) }
+                }
             }
-            .pickerStyle(.segmented)
 
             Picker("Screen", selection: Binding(
                 get: { windowController.displayID },
@@ -308,19 +312,21 @@ struct SettingsView: View {
 
     private var api: some View {
         Section {
-            Picker("Socket", selection: $apiAccess) {
-                Text("Enabled").tag("enabled")
-                Text("Ask first").tag("ask")
-                Text("Disabled").tag("disabled")
+            segmentedRow("Socket") {
+                Picker("Socket", selection: $apiAccess) {
+                    Text("Enabled").tag("enabled")
+                    Text("Ask first").tag("ask")
+                    Text("Disabled").tag("disabled")
+                }
             }
-            .pickerStyle(.segmented)
 
-            Picker("MCP", selection: $mcpAccess) {
-                Text("Enabled").tag("enabled")
-                Text("Ask first").tag("ask")
-                Text("Disabled").tag("disabled")
+            segmentedRow("MCP") {
+                Picker("MCP", selection: $mcpAccess) {
+                    Text("Enabled").tag("enabled")
+                    Text("Ask first").tag("ask")
+                    Text("Disabled").tag("disabled")
+                }
             }
-            .pickerStyle(.segmented)
         } header: {
             Text("API")
         } footer: {
@@ -333,14 +339,20 @@ struct SettingsView: View {
 
     private var advanced: some View {
         Section {
+            // Full-width buttons so their edges align with the segmented controls and
+            // pickers above rather than each sitting at its own natural width.
             Button("Open Config") { GhosttyApp.shared.openConfig() }
+                .frame(maxWidth: .infinity)
             Button("Reload Config") { GhosttyApp.shared.reloadConfig() }
+                .frame(maxWidth: .infinity)
             Button("Check for Updates…") { SparkleUpdater.shared.checkForUpdates() }
+                .frame(maxWidth: .infinity)
                 .disabled(!SparkleUpdater.shared.canCheckForUpdates)
             Button(role: .destructive) {
                 NSApplication.shared.terminate(nil)
             } label: {
                 Label("Quit \(AppIdentity.displayName)", systemImage: "power")
+                    .frame(maxWidth: .infinity)
             }
         } header: {
             Text("Advanced")
@@ -367,6 +379,28 @@ struct SettingsView: View {
             }
         } footer: {
             Text("\(AppIdentity.displayName) v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
+        }
+    }
+
+    // MARK: - Row builders
+
+    /// A segmented control that spans the whole row rather than hugging its options.
+    /// Left inline, a two-option control and a four-option one end at different places
+    /// and their edges never line up; here the label sits above and the control fills
+    /// the width, so Cursor, Blur, Chrome, Width and the rest share one left and one
+    /// right edge straight down the column.
+    private func segmentedRow<Content: View>(_ title: String,
+                                             @ViewBuilder _ picker: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+            picker()
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                // Leading, not centred: a macOS segmented control sizes to its options
+                // and cannot stretch its segments to fill, so full width would just
+                // centre it and leave the edges ragged. Pinned left, every control in
+                // the column starts on the same line — the clean edge is the left one.
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

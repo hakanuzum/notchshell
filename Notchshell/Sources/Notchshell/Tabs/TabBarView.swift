@@ -190,7 +190,9 @@ struct TabBarView: View {
                 }
 
                 Button(action: { showFontSizeSlider.toggle() }) {
-                    Image(systemName: "magnifyingglass")
+                    // `textformat.size` (an A with a size marker), not a magnifying glass
+                    // — the loupe read as Find, which is a different thing entirely.
+                    Image(systemName: "textformat.size")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(FolderTabPalette.barIcon)
                         .frame(width: 24, height: 22)
