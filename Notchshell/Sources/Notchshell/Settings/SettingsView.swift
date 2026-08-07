@@ -84,6 +84,7 @@ struct SettingsView: View {
     @AppStorage("confirmOnQuit") private var confirmOnQuit: Bool = false
     @AppStorage("restoreTabsOnLaunch") private var restoreTabsOnLaunch: Bool = true
     @AppStorage("disableAnimation") private var disableAnimation: Bool = false
+    @AppStorage("copyOnSelect") private var copyOnSelect: Bool = true
     @AppStorage("shellPath") private var shellPath: String = ""
 
     @State private var customShellPath: String = ""
@@ -164,6 +165,7 @@ struct SettingsView: View {
                 }
             Toggle("Confirm before quitting", isOn: $confirmOnQuit)
             Toggle("Restore tabs on launch", isOn: $restoreTabsOnLaunch)
+            Toggle("Copy on select", isOn: $copyOnSelect)
             Toggle("Disable animation", isOn: $disableAnimation)
             Toggle("Check for updates automatically", isOn: Binding(
                 get: { SparkleUpdater.shared.automaticallyChecksForUpdates },

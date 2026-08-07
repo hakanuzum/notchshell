@@ -269,6 +269,26 @@ final class GhosttyTerminalView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         ghostty_surface_mouse_pos(backend?.surface, point.x, bounds.height - point.y, Self.modsFromEvent(event))
         _ = ghostty_surface_mouse_button(backend?.surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_LEFT, Self.modsFromEvent(event))
+        copySelectionIfEnabled()
+    }
+
+    /// Copy-on-select: the moment a mouse selection is finished, put it on the clipboard
+    /// so it can be pasted without a further Copy — the behaviour iTerm2 and others call
+    /// "copy on select". Gated behind a default-on setting, and behind an actual
+    /// selection so a plain click (which clears any selection) does not wipe the
+    /// clipboard.
+    private func copySelectionIfEnabled() {
+        guard UserDefaults.standard.object(forKey: "copyOnSelect") as? Bool ?? true,
+              let surface = backend?.surface,
+              ghostty_surface_has_selection(surface) else { return }
+        var text = ghostty_text_s()
+        guard ghostty_surface_read_selection(surface, &text),
+              let ptr = text.text, text.text_len > 0 else { return }
+        let selection = String(cString: ptr)
+        ghostty_surface_free_text(surface, &text)
+        guard !selection.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(selection, forType: .string)
     }
 
     override func mouseMoved(with event: NSEvent) {
