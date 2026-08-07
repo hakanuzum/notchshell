@@ -66,4 +66,7 @@ extension Notification.Name {
     /// Posted when the theme in effect changes, including when a light/dark pair
     /// switches side because the system appearance changed.
     static let terminalThemeDidChange = Notification.Name("\(AppIdentity.slug).themeDidChange")
+    /// Posted when the font size changes from somewhere other than the tab-bar slider —
+    /// a ⌘-scroll or a pinch over the terminal — so the slider can catch up.
+    static let terminalFontSizeDidChange = Notification.Name("\(AppIdentity.slug).fontSizeDidChange")
 }

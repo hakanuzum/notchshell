@@ -378,8 +378,22 @@ final class GhosttyTerminalView: NSView {
         backend?.send(text: "\u{0C}")
     }
 
+    /// Accumulated scroll and pinch toward the next whole-point font step. Kept between
+    /// events because one wheel notch or one pinch frame is a fraction of a step, and
+    /// stepping per event would either overshoot or ignore small movements.
+    private var fontZoomAccumulator: CGFloat = 0
+
     override func scrollWheel(with event: NSEvent) {
         guard backend?.surface != nil else { return }
+
+        // ⌘-scroll zooms the font instead of scrolling the buffer — the mouse's
+        // counterpart to pinch-to-zoom on a trackpad. Consumed here so the scrollback
+        // does not also move under the cursor.
+        if event.modifierFlags.contains(.command) {
+            zoomFont(byScroll: event)
+            return
+        }
+
         var x = event.scrollingDeltaX
         var y = event.scrollingDeltaY
         let precise = event.hasPreciseScrollingDeltas
@@ -397,6 +411,52 @@ final class GhosttyTerminalView: NSView {
         scrollMods |= momentum << 1
 
         ghostty_surface_mouse_scroll(backend?.surface, x, y, ghostty_input_scroll_mods_t(scrollMods))
+    }
+
+    // MARK: - Font zoom (⌘-scroll and pinch)
+
+    /// One font point per this much accumulated *precise* (trackpad) scroll, in points.
+    /// A two-finger drag emits many small deltas; this makes the zoom firm rather than
+    /// racing away. A mouse wheel does not use this — see below.
+    private static let preciseScrollPerFontStep: CGFloat = 20
+
+    /// One font point per this much accumulated pinch. `magnification` is a small ratio
+    /// (a full pinch is ~0.3–0.5 end to end), so a step every ~0.04 gives a firm but
+    /// unhurried zoom.
+    private static let magnificationPerFontStep: CGFloat = 0.04
+
+    private func zoomFont(byScroll event: NSEvent) {
+        // Direction, not the "natural scrolling" setting: up/away enlarges, down/toward
+        // shrinks, like every other app's ⌘-zoom. That setting only flips content
+        // scrolling, which this path replaces.
+        if event.hasPreciseScrollingDeltas {
+            fontZoomAccumulator += event.scrollingDeltaY
+            stepFontFromAccumulator(unit: Self.preciseScrollPerFontStep)
+        } else {
+            // A mouse wheel: one notch, one point. `scrollingDeltaY` is ±1 per notch in
+            // line units, so its sign is the whole story and accumulation is not needed.
+            let notches = event.scrollingDeltaY
+            guard notches != 0 else { return }
+            GhosttyApp.shared.adjustFontSize(by: notches > 0 ? 1 : -1)
+        }
+    }
+
+    override func magnify(with event: NSEvent) {
+        // Pinch-to-zoom on the trackpad: the mouse-free counterpart to ⌘-scroll. No
+        // modifier — pinch has no other meaning over a terminal, and requiring ⌘ on a
+        // gesture no app asks for it would just make it feel broken.
+        fontZoomAccumulator += event.magnification * (Self.preciseScrollPerFontStep / Self.magnificationPerFontStep)
+        stepFontFromAccumulator(unit: Self.preciseScrollPerFontStep)
+        if event.phase == .ended || event.phase == .cancelled { fontZoomAccumulator = 0 }
+    }
+
+    /// Convert accumulated precise movement into whole-point steps and apply them,
+    /// keeping the sub-step remainder so slow movement still eventually lands a step.
+    private func stepFontFromAccumulator(unit: CGFloat) {
+        let steps = (fontZoomAccumulator / unit).rounded(.towardZero)
+        guard steps != 0 else { return }
+        fontZoomAccumulator -= steps * unit
+        GhosttyApp.shared.adjustFontSize(by: Double(steps))
     }
 
     override func mouseExited(with event: NSEvent) {

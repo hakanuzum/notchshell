@@ -259,6 +259,11 @@ struct TabBarView: View {
         .overlay(alignment: .bottom) {
             PanelResizeGrabber(windowController: windowController)
         }
+        // ⌘-scroll and pinch change the font from over the terminal; keep the slider's
+        // value in step so it does not snap back to a stale number when next opened.
+        .onReceive(NotificationCenter.default.publisher(for: .terminalFontSizeDidChange)) { _ in
+            fontSize = TerminalAppearanceSettings.fontSize
+        }
     }
 
     // MARK: - Classic dark top bar (fallback)

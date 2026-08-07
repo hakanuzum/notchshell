@@ -401,6 +401,25 @@ final class GhosttyApp: @unchecked Sendable {
         return true
     }
 
+    /// Nudge the font size by `points`, clamped to the range the app offers, and apply
+    /// it live. Central so ⌘-scroll and pinch-to-zoom share one path with the tab-bar
+    /// slider — same clamp, same write to `overrides.conf`, same reload — instead of
+    /// each reinventing the arithmetic. Sizes are whole points: the config takes
+    /// fractional values but a terminal grid gains nothing from 14.3pt, and rounding
+    /// keeps repeated steps from drifting. Posts `terminalFontSizeDidChange` so the
+    /// slider reflects a change it did not make. Returns the size actually in effect.
+    @discardableResult
+    func adjustFontSize(by points: Double) -> Double {
+        let current = TerminalAppearanceSettings.fontSize
+        let range = TerminalAppearanceSettings.fontSizeRange
+        let next = (current + points).rounded()
+        let clamped = min(max(next, range.lowerBound), range.upperBound)
+        guard clamped != current else { return current }
+        apply(.fontSize, to: String(Int(clamped)))
+        NotificationCenter.default.post(name: .terminalFontSizeDidChange, object: nil)
+        return clamped
+    }
+
     // MARK: - Theme
 
     /// Apply a theme selection and reload every surface.
