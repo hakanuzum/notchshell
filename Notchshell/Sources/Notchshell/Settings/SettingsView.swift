@@ -69,29 +69,23 @@ struct SettingsView: View {
     private static let widthChoices = [50, 75, 100]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Settings").font(.title2.bold())
-
-                general
-                terminal
-                shell
-                panel
-                keyboard
-                api
-                advanced
-
-                Divider().padding(.top, 8)
-
-                Text("\(AppIdentity.displayName) v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-
-                acknowledgements
-            }
-            .padding(24)
+        // A grouped Form is the native macOS Settings composition: titled sections with
+        // consistent insets, labels aligned down a column, and controls to their
+        // trailing edge. No "Settings" heading — the sidebar it lives in is the label.
+        // The sub-views below are Sections, not GroupBoxes; the Form owns the spacing.
+        Form {
+            general
+            terminal
+            shell
+            panel
+            keyboard
+            api
+            advanced
+            about
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PanelChrome.contentBackground(style: windowController.chromeStyle))
         .preferredColorScheme(PanelChrome.colorScheme(style: windowController.chromeStyle))
     }
@@ -99,102 +93,94 @@ struct SettingsView: View {
     // MARK: - General
 
     private var general: some View {
-        GroupBox("General") {
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("Launch at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) {
-                        do {
-                            if launchAtLogin {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
-                        } catch {
-                            launchAtLogin = SMAppService.mainApp.status == .enabled
+        Section("General") {
+            Toggle("Launch at login", isOn: $launchAtLogin)
+                .onChange(of: launchAtLogin) {
+                    do {
+                        if launchAtLogin {
+                            try SMAppService.mainApp.register()
+                        } else {
+                            try SMAppService.mainApp.unregister()
                         }
+                    } catch {
+                        launchAtLogin = SMAppService.mainApp.status == .enabled
                     }
-                Toggle("Confirm before quitting", isOn: $confirmOnQuit)
-                Toggle("Restore tabs on launch", isOn: $restoreTabsOnLaunch)
-                Toggle("Disable animation", isOn: $disableAnimation)
-                Toggle("Check for updates automatically", isOn: Binding(
-                    get: { SparkleUpdater.shared.automaticallyChecksForUpdates },
-                    set: { SparkleUpdater.shared.automaticallyChecksForUpdates = $0 }
-                ))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+                }
+            Toggle("Confirm before quitting", isOn: $confirmOnQuit)
+            Toggle("Restore tabs on launch", isOn: $restoreTabsOnLaunch)
+            Toggle("Disable animation", isOn: $disableAnimation)
+            Toggle("Check for updates automatically", isOn: Binding(
+                get: { SparkleUpdater.shared.automaticallyChecksForUpdates },
+                set: { SparkleUpdater.shared.automaticallyChecksForUpdates = $0 }
+            ))
         }
     }
 
     // MARK: - Terminal
 
     private var terminal: some View {
-        GroupBox("Terminal") {
-            VStack(alignment: .leading, spacing: 10) {
-                Picker("Font:", selection: $fontFamily) {
-                    Text("Ghostty default").tag("")
-                    Divider()
-                    ForEach(TerminalAppearanceSettings.monospacedFontFamilies, id: \.self) { family in
-                        Text(family).tag(family)
-                    }
-                }
-                .onChange(of: fontFamily) {
-                    apply(.fontFamily, fontFamily.isEmpty ? nil : fontFamily)
-                }
-
-                Picker("Cursor:", selection: $cursorStyle) {
-                    ForEach(TerminalAppearanceSettings.cursorStyles, id: \.self) { style in
-                        Text(style.capitalized).tag(style)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: cursorStyle) { apply(.cursorStyle, cursorStyle) }
-
-                Picker("Blur:", selection: $blurRadius) {
-                    ForEach(Self.blurChoices, id: \.value) { choice in
-                        Text(choice.label).tag(choice.value)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: blurRadius) {
-                    apply(.backgroundBlurRadius, blurRadius == 0 ? nil : String(blurRadius))
-                }
-
+        Section {
+            Picker("Font", selection: $fontFamily) {
+                Text("Ghostty default").tag("")
                 Divider()
-
-                // The palette button sets one theme. Only a pair needs this.
-                Toggle("Separate light and dark themes", isOn: $followsAppearance)
-                    .onChange(of: followsAppearance) { applyThemeSelection() }
-
-                if followsAppearance {
-                    Picker("Light:", selection: $lightTheme) {
-                        ForEach(themeCatalog.themeNames, id: \.self) { Text($0).tag($0) }
-                    }
-                    .onChange(of: lightTheme) { applyThemeSelection() }
-
-                    Picker("Dark:", selection: $darkTheme) {
-                        ForEach(themeCatalog.themeNames, id: \.self) { Text($0).tag($0) }
-                    }
-                    .onChange(of: darkTheme) { applyThemeSelection() }
-                } else {
-                    Text("Pick the single theme from the palette button on the tab bar.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                ForEach(TerminalAppearanceSettings.monospacedFontFamilies, id: \.self) { family in
+                    Text(family).tag(family)
                 }
-
-                Text("Written to \(ManagedConfig.overridesPath). Your own Ghostty config is included ahead of it and never modified.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(8)
-            .task {
-                await themeCatalog.load()
-                if let selection = GhosttyThemeCatalog.currentSelection() {
-                    followsAppearance = selection.followsSystemAppearance
-                    lightTheme = selection.lightTheme
-                    darkTheme = selection.darkTheme
+            .onChange(of: fontFamily) {
+                apply(.fontFamily, fontFamily.isEmpty ? nil : fontFamily)
+            }
+
+            Picker("Cursor", selection: $cursorStyle) {
+                ForEach(TerminalAppearanceSettings.cursorStyles, id: \.self) { style in
+                    Text(style.capitalized).tag(style)
                 }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: cursorStyle) { apply(.cursorStyle, cursorStyle) }
+
+            Picker("Blur", selection: $blurRadius) {
+                ForEach(Self.blurChoices, id: \.value) { choice in
+                    Text(choice.label).tag(choice.value)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: blurRadius) {
+                apply(.backgroundBlurRadius, blurRadius == 0 ? nil : String(blurRadius))
+            }
+
+            // The palette button sets one theme. Only a pair needs this.
+            Toggle("Separate light and dark themes", isOn: $followsAppearance)
+                .onChange(of: followsAppearance) { applyThemeSelection() }
+
+            if followsAppearance {
+                Picker("Light", selection: $lightTheme) {
+                    ForEach(themeCatalog.themeNames, id: \.self) { Text($0).tag($0) }
+                }
+                .onChange(of: lightTheme) { applyThemeSelection() }
+
+                Picker("Dark", selection: $darkTheme) {
+                    ForEach(themeCatalog.themeNames, id: \.self) { Text($0).tag($0) }
+                }
+                .onChange(of: darkTheme) { applyThemeSelection() }
+            }
+        } header: {
+            Text("Terminal")
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                if !followsAppearance {
+                    Text("Pick the single theme from the palette button on the tab bar.")
+                }
+                Text("Written to \(ManagedConfig.overridesPath). Your own Ghostty config is included ahead of it and never modified.")
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .task {
+            await themeCatalog.load()
+            if let selection = GhosttyThemeCatalog.currentSelection() {
+                followsAppearance = selection.followsSystemAppearance
+                lightTheme = selection.lightTheme
+                darkTheme = selection.darkTheme
             }
         }
     }
@@ -202,68 +188,64 @@ struct SettingsView: View {
     // MARK: - Shell
 
     private var shell: some View {
-        GroupBox("Shell") {
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("Shell:", selection: Binding(
-                    get: {
-                        if isCustomShell { return "__custom__" }
-                        let current = shellPath.isEmpty ? "auto" : shellPath
-                        if current == "auto" { return "auto" }
-                        return availableShells.contains(current) ? current : "__custom__"
-                    },
-                    set: { newValue in
-                        customShellProblem = nil
-                        switch newValue {
-                        case "__custom__":
-                            isCustomShell = true
-                            customShellPath = shellPath
-                        case "auto":
-                            isCustomShell = false
-                            shellPath = ""
-                        default:
-                            isCustomShell = false
-                            shellPath = newValue
-                        }
-                    }
-                )) {
-                    Text("Auto ($SHELL)").tag("auto")
-                    ForEach(availableShells, id: \.self) { Text($0).tag($0) }
-                    Divider()
-                    Text("Custom…").tag("__custom__")
-                }
-
-                if isCustomShell {
-                    // No Test button: the path is checked when the field is committed,
-                    // which is the only moment the answer could have changed.
-                    TextField("Path to shell or command", text: Binding(
-                        get: { customShellPath },
-                        set: { customShellPath = $0; customShellProblem = nil }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .focused($shellFieldFocused)
-                    .onSubmit { testAndApplyShell() }
-                    .onChange(of: shellFieldFocused) {
-                        if !shellFieldFocused && !customShellPath.isEmpty { testAndApplyShell() }
-                    }
-
-                    if let customShellProblem {
-                        Label(customShellProblem, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+        Section {
+            Picker("Shell", selection: Binding(
+                get: {
+                    if isCustomShell { return "__custom__" }
+                    let current = shellPath.isEmpty ? "auto" : shellPath
+                    if current == "auto" { return "auto" }
+                    return availableShells.contains(current) ? current : "__custom__"
+                },
+                set: { newValue in
+                    customShellProblem = nil
+                    switch newValue {
+                    case "__custom__":
+                        isCustomShell = true
+                        customShellPath = shellPath
+                    case "auto":
+                        isCustomShell = false
+                        shellPath = ""
+                    default:
+                        isCustomShell = false
+                        shellPath = newValue
                     }
                 }
-
-                Text("Changes apply to new tabs only.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            )) {
+                Text("Auto ($SHELL)").tag("auto")
+                ForEach(availableShells, id: \.self) { Text($0).tag($0) }
+                Divider()
+                Text("Custom…").tag("__custom__")
             }
-            .padding(8)
-            .onAppear {
-                let current = shellPath
-                if !current.isEmpty && current != "auto" && !availableShells.contains(current) {
-                    isCustomShell = true
-                    customShellPath = current
+
+            if isCustomShell {
+                // No Test button: the path is checked when the field is committed,
+                // which is the only moment the answer could have changed.
+                TextField("Path to shell or command", text: Binding(
+                    get: { customShellPath },
+                    set: { customShellPath = $0; customShellProblem = nil }
+                ))
+                .focused($shellFieldFocused)
+                .onSubmit { testAndApplyShell() }
+                .onChange(of: shellFieldFocused) {
+                    if !shellFieldFocused && !customShellPath.isEmpty { testAndApplyShell() }
                 }
+
+                if let customShellProblem {
+                    Label(customShellProblem, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        } header: {
+            Text("Shell")
+        } footer: {
+            Text("Changes apply to new tabs only.")
+        }
+        .onAppear {
+            let current = shellPath
+            if !current.isEmpty && current != "auto" && !availableShells.contains(current) {
+                isCustomShell = true
+                customShellPath = current
             }
         }
     }
@@ -271,144 +253,121 @@ struct SettingsView: View {
     // MARK: - Panel
 
     private var panel: some View {
-        GroupBox("Panel") {
-            VStack(alignment: .leading, spacing: 10) {
-                Picker("Chrome:", selection: Binding(
-                    get: { windowController.chromeStyle },
-                    set: { windowController.setChromeStyle($0) }
-                )) {
-                    ForEach(PanelChromeStyle.allCases) { style in
-                        Text(style.displayName).tag(style)
-                    }
+        Section {
+            Picker("Chrome", selection: Binding(
+                get: { windowController.chromeStyle },
+                set: { windowController.setChromeStyle($0) }
+            )) {
+                ForEach(PanelChromeStyle.allCases) { style in
+                    Text(style.displayName).tag(style)
                 }
-                .pickerStyle(.segmented)
-
-                Picker("Width:", selection: Binding(
-                    get: { Self.widthChoices.min(by: {
-                        abs($0 - windowController.widthPercent) < abs($1 - windowController.widthPercent)
-                    }) ?? 100 },
-                    set: { windowController.setWidthPercent($0) }
-                )) {
-                    ForEach(Self.widthChoices, id: \.self) { Text("\($0)%").tag($0) }
-                }
-                .pickerStyle(.segmented)
-
-                Picker("Screen:", selection: Binding(
-                    get: { windowController.displayID },
-                    set: { windowController.setDisplayID($0) }
-                )) {
-                    Text("Auto (follow cursor)").tag(0 as Int)
-                    ForEach(NSScreen.screens, id: \.self) { screen in
-                        Text(screen.localizedName).tag(screenID(for: screen))
-                    }
-                }
-
-                Text("Height is set by dragging the handle on the panel's bottom edge.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
-            .padding(8)
+            .pickerStyle(.segmented)
+
+            Picker("Width", selection: Binding(
+                get: { Self.widthChoices.min(by: {
+                    abs($0 - windowController.widthPercent) < abs($1 - windowController.widthPercent)
+                }) ?? 100 },
+                set: { windowController.setWidthPercent($0) }
+            )) {
+                ForEach(Self.widthChoices, id: \.self) { Text("\($0)%").tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Picker("Screen", selection: Binding(
+                get: { windowController.displayID },
+                set: { windowController.setDisplayID($0) }
+            )) {
+                Text("Auto (follow cursor)").tag(0 as Int)
+                ForEach(NSScreen.screens, id: \.self) { screen in
+                    Text(screen.localizedName).tag(screenID(for: screen))
+                }
+            }
+        } header: {
+            Text("Panel")
+        } footer: {
+            Text("Height is set by dragging the handle on the panel's bottom edge.")
         }
     }
 
     // MARK: - Keyboard
 
     private var keyboard: some View {
-        GroupBox("Keyboard") {
-            VStack(alignment: .leading, spacing: 8) {
-                KeyboardShortcuts.Recorder("Toggle Terminal:", name: .toggleTerminal)
-                KeyboardShortcuts.Recorder("Next Tab:", name: .nextTab)
-                KeyboardShortcuts.Recorder("Previous Tab:", name: .previousTab)
-                Text("Ctrl+Tab and ⌘1-9 are always available.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+        Section {
+            KeyboardShortcuts.Recorder("Toggle Terminal", name: .toggleTerminal)
+            KeyboardShortcuts.Recorder("Next Tab", name: .nextTab)
+            KeyboardShortcuts.Recorder("Previous Tab", name: .previousTab)
+        } header: {
+            Text("Keyboard")
+        } footer: {
+            Text("Ctrl+Tab and ⌘1-9 are always available.")
         }
     }
 
     // MARK: - API
 
     private var api: some View {
-        GroupBox("API") {
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("Socket:", selection: $apiAccess) {
-                    Text("Enabled").tag("enabled")
-                    Text("Ask first").tag("ask")
-                    Text("Disabled").tag("disabled")
-                }
-                .pickerStyle(.segmented)
-
-                Picker("MCP:", selection: $mcpAccess) {
-                    Text("Enabled").tag("enabled")
-                    Text("Ask first").tag("ask")
-                    Text("Disabled").tag("disabled")
-                }
-                .pickerStyle(.segmented)
-
-                Text(verbatim: "\(AppIdentity.controlSocketPath) · MCP on port \(MCPHTTPServer.defaultPort), takes effect after restart.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        Section {
+            Picker("Socket", selection: $apiAccess) {
+                Text("Enabled").tag("enabled")
+                Text("Ask first").tag("ask")
+                Text("Disabled").tag("disabled")
             }
-            .padding(8)
+            .pickerStyle(.segmented)
+
+            Picker("MCP", selection: $mcpAccess) {
+                Text("Enabled").tag("enabled")
+                Text("Ask first").tag("ask")
+                Text("Disabled").tag("disabled")
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("API")
+        } footer: {
+            Text(verbatim: "\(AppIdentity.controlSocketPath) · MCP on port \(MCPHTTPServer.defaultPort), takes effect after restart.")
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     // MARK: - Advanced
 
     private var advanced: some View {
-        GroupBox("Advanced") {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    Button("Open Config") { GhosttyApp.shared.openConfig() }
-                    Button("Reload Config") { GhosttyApp.shared.reloadConfig() }
-                    Button("Check for Updates…") { SparkleUpdater.shared.checkForUpdates() }
-                        .disabled(!SparkleUpdater.shared.canCheckForUpdates)
-                    Spacer()
-                }
-                .buttonStyle(.bordered)
-
-                Text("Command line tool, Finder services and the shell colour check are in Help.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Divider()
-
-                Button(action: { NSApplication.shared.terminate(nil) }) {
-                    Label("Quit \(AppIdentity.displayName)", systemImage: "power")
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.red)
+        Section {
+            Button("Open Config") { GhosttyApp.shared.openConfig() }
+            Button("Reload Config") { GhosttyApp.shared.reloadConfig() }
+            Button("Check for Updates…") { SparkleUpdater.shared.checkForUpdates() }
+                .disabled(!SparkleUpdater.shared.canCheckForUpdates)
+            Button(role: .destructive) {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Label("Quit \(AppIdentity.displayName)", systemImage: "power")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+        } header: {
+            Text("Advanced")
+        } footer: {
+            Text("Command line tool, Finder services and the shell colour check are in Help.")
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var acknowledgements: some View {
-        DisclosureGroup("Acknowledgements") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("GhosttyKit").font(.caption.bold())
-                Text("Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors")
-                    .font(.system(size: 10)).foregroundColor(.secondary)
-                Text("MIT License — Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to the above copyright notice and this permission notice being included in all copies or substantial portions of the Software.")
-                    .font(.system(size: 10)).foregroundColor(.secondary)
-
-                Divider()
-
-                Text("KeyboardShortcuts").font(.caption.bold())
-                Text("Copyright (c) Sindre Sorhus")
-                    .font(.system(size: 10)).foregroundColor(.secondary)
-                Text("MIT License")
-                    .font(.system(size: 10)).foregroundColor(.secondary)
+    private var about: some View {
+        Section {
+            DisclosureGroup("Acknowledgements") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("GhosttyKit").font(.caption.bold())
+                    Text("Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors")
+                        .font(.system(size: 10)).foregroundColor(.secondary)
+                    Text("MIT License. Ghostty and its contributors, used under the terms of the MIT License.")
+                        .font(.system(size: 10)).foregroundColor(.secondary)
+                    Divider()
+                    Text("KeyboardShortcuts").font(.caption.bold())
+                    Text("Copyright (c) Sindre Sorhus — MIT License")
+                        .font(.system(size: 10)).foregroundColor(.secondary)
+                }
             }
-            .padding(8)
+        } footer: {
+            Text("\(AppIdentity.displayName) v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
         }
-        .font(.system(size: 11))
-        .foregroundColor(.secondary)
     }
 
     // MARK: - Actions
