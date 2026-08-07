@@ -38,6 +38,8 @@ struct SettingsView: View {
     @State private var cursorStyle: String = TerminalAppearanceSettings.string(.cursorStyle) ?? "block"
     @State private var cliMessage: String?
     @State private var cliInstalledAt: String? = CommandLineInstaller.existingInstallation()
+    @State private var colourReport: ShellColorAudit.Report?
+    @State private var auditRan = false
     @State private var themeApplyMessage: String?
     @FocusState private var shellFieldFocused: Bool
 
@@ -228,6 +230,80 @@ struct SettingsView: View {
                         .pickerStyle(.segmented)
                         Text("Light = Unclutter-style bottom tabs. Dark = classic top tab bar.")
                             .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(8)
+                }
+
+                GroupBox("Shell Colour Compatibility") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("A colour written as a hex value in your shell config is frozen — the terminal cannot repaint it when the theme changes, so colours picked against a dark background stay put on a light one. Colours written as ANSI names follow the theme instead.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(spacing: 10) {
+                            Button("Check My Shell Config") {
+                                colourReport = ShellColorAudit.audit(forDarkAppearance: false)
+                                auditRan = true
+                            }
+                            .buttonStyle(.bordered)
+                            Spacer()
+                        }
+
+                        if let report = colourReport {
+                            Text("Checked against \(report.themeName) (\(report.backgroundHex)) — your light theme, where the problem shows.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+
+                            if report.findings.isEmpty {
+                                Label("No hardcoded colours found.", systemImage: "checkmark.circle")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else if report.isClean {
+                                Label("\(report.findings.count) hardcoded colours, all still legible.",
+                                      systemImage: "checkmark.circle")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Label("\(report.unreadable.count) of \(report.findings.count) fall below 3:1 and are effectively invisible.",
+                                      systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+
+                                ScrollView {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        ForEach(Array(report.unreadable.prefix(12).enumerated()), id: \.offset) { _, finding in
+                                            HStack(spacing: 6) {
+                                                RoundedRectangle(cornerRadius: 2)
+                                                    .fill(Color(nsColor: ShellColorAudit.colour(fromHex: finding.hex) ?? .gray))
+                                                    .frame(width: 12, height: 12)
+                                                Text(verbatim: "\(finding.file):\(finding.line)")
+                                                    .foregroundColor(.secondary)
+                                                Text(verbatim: finding.label.isEmpty ? "#\(finding.hex)" : finding.label)
+                                                Spacer()
+                                                Text(String(format: "%.1f:1", finding.contrast))
+                                                    .foregroundColor(.secondary)
+                                                    .monospacedDigit()
+                                            }
+                                            .font(.system(size: 10, design: .monospaced))
+                                        }
+                                    }
+                                }
+                                .frame(maxHeight: 140)
+
+                                Text("Fix by replacing the hex value with an ANSI name — `a6e3a1` becomes `green`, `38;2;137;180;250` becomes `34`. Colours meant to recede, like comments and autosuggestions, are fine as they are.")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        } else if auditRan {
+                            Text("Could not read the active theme.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Text("Nothing here is modified — your shell config is yours.")
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                     }
                     .padding(8)
