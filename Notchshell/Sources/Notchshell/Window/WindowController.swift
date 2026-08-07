@@ -31,7 +31,7 @@ final class WindowController: ObservableObject {
 
     @Published var heightPercent: Int = WindowController.defaultHeightPercent
     @Published var panelWidth: CGFloat = 0
-    @Published var chromeStyle: PanelChromeStyle = .unclutter
+    @Published var chromeStyle: PanelChromeStyle = .auto
 
     private var previousApp: NSRunningApplication?
     private var resignObserver: Any?
@@ -58,7 +58,7 @@ final class WindowController: ObservableObject {
     @AppStorage("terminalWidthPercent") private var savedWidthPercent: Int = 100
     @AppStorage("terminalHeightPercent") private var savedHeightPercent: Int = WindowController.defaultHeightPercent
     @AppStorage("selectedDisplayID") private var savedDisplayID: Int = 0
-    @AppStorage("panelChromeStyle") private var savedChromeStyle: String = PanelChromeStyle.unclutter.rawValue
+    @AppStorage("panelChromeStyle") private var savedChromeStyle: String = PanelChromeStyle.auto.rawValue
 
     // MARK: - Sizes
 
@@ -123,7 +123,7 @@ final class WindowController: ObservableObject {
         self.displayID = savedDisplayID
         self.widthPercent = savedWidthPercent
         self.heightPercent = savedHeightPercent
-        self.chromeStyle = PanelChromeStyle(rawValue: savedChromeStyle) ?? .unclutter
+        self.chromeStyle = PanelChromeStyle(rawValue: savedChromeStyle) ?? .auto
         // Prefer full-width Unclutter shelf
         if widthPercent < 90 {
             widthPercent = 100
