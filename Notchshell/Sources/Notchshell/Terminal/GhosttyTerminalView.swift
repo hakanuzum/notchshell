@@ -289,6 +289,8 @@ final class GhosttyTerminalView: NSView {
         guard !selection.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(selection, forType: .string)
+        NotificationCenter.default.post(name: .terminalDidCopy, object: nil,
+                                        userInfo: ["count": selection.count])
     }
 
     override func mouseMoved(with event: NSEvent) {

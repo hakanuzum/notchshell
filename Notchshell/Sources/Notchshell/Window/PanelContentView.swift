@@ -9,6 +9,12 @@ struct PanelContentView: View {
     @State private var dragStartSize: CGSize = .zero
     @State private var resizePreview: CGSize? = nil
 
+    /// Transient "copied N chars" confirmation, shown in the terminal's bottom-right
+    /// after a copy-on-select. `copyToastToken` cancels a pending dismissal when a new
+    /// copy arrives before the last has faded.
+    @State private var copyToast: String? = nil
+    @State private var copyToastToken = 0
+
     private var isVisible: Bool {
         windowController.state == .visible
     }
@@ -94,6 +100,32 @@ struct PanelContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay(alignment: .bottomTrailing) {
+                    if let copyToast {
+                        Text(copyToast)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(.black.opacity(0.72), in: Capsule())
+                            .padding(16)
+                            .transition(.opacity)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .terminalDidCopy)) { note in
+                    let count = note.userInfo?["count"] as? Int ?? 0
+                    copyToastToken += 1
+                    let token = copyToastToken
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        copyToast = "copied \(count) chars to clipboard"
+                    }
+                    // Hold, then fade — unless another copy has since replaced it.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                        guard token == copyToastToken else { return }
+                        withAnimation(.easeOut(duration: 0.3)) { copyToast = nil }
+                    }
+                }
 
                 // Settings, docked to the trailing edge at 30% of the shelf width. The
                 // terminal keeps the rest — a real side panel, not an overlay. It appears

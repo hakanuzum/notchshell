@@ -72,4 +72,7 @@ extension Notification.Name {
     /// Posted when a terminal surface is clicked, so the Settings sidebar can close —
     /// clicking into the terminal dismisses it, clicking within it does not.
     static let terminalClicked = Notification.Name("\(AppIdentity.slug).terminalClicked")
+    /// Posted when a selection is copied to the clipboard, with `userInfo["count"]` set
+    /// to the character count, so the panel can show a brief confirmation.
+    static let terminalDidCopy = Notification.Name("\(AppIdentity.slug).terminalDidCopy")
 }
