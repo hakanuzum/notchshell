@@ -1,0 +1,318 @@
+diff --git a/src/terminal/osc.zig b/src/terminal/osc.zig
+index 0086e48bc..2515e448d 100644
+--- a/src/terminal/osc.zig
++++ b/src/terminal/osc.zig
+@@ -160,6 +160,28 @@ pub const Command = union(Key) {
+     /// https://uapi-group.org/specifications/specs/osc_context/
+     context_signal: parsers.context_signal.Command,
+ 
++    /// OSC 1337;File=...:<base64> — an inline image, the iTerm2 way.
++    ///
++    /// Last in the union, and last in `Key`, because the two are one type: this
++    /// is `union(Key)`, so the fields and the names have to be in the same order.
++    /// Filing it next to the other OSC 1337 work would have been tidier to read
++    /// and is not allowed to compile.
++    ///
++    /// The payload is left base64 as it arrived: decoding it means allocating a
++    /// buffer the size of the image, and the parser has no allocator it wants to
++    /// spend on that. The consumer decodes, and is also where the image is handed
++    /// to the Kitty graphics machinery, which already knows how to store, place
++    /// and render one.
++    iterm2_file: struct {
++        /// Base64-encoded image data. PNG and JPEG are the formats that reach
++        /// the screen; anything else is dropped by the consumer.
++        data: [:0]const u8,
++        /// Display size in cells. Zero means "the image's own size", which is
++        /// what iTerm2 calls `auto`.
++        columns: u32 = 0,
++        rows: u32 = 0,
++    },
++
+     pub const SemanticPrompt = parsers.semantic_prompt.Command;
+ 
+     pub const KittyClipboardProtocol = parsers.kitty_clipboard_protocol.OSC;
+@@ -193,6 +215,10 @@ pub const Command = union(Key) {
+             "kitty_text_sizing",
+             "kitty_clipboard_protocol",
+             "context_signal",
++            // Appended rather than filed next to its OSC number: this list is a
++            // C ABI enum and order is its contract, so a name inserted in the
++            // middle renumbers everything after it.
++            "iterm2_file",
+         },
+     );
+ 
+@@ -425,6 +451,9 @@ pub const Parser = struct {
+             .kitty_text_sizing,
+             .kitty_clipboard_protocol,
+             .context_signal,
++            // Nothing to free: the base64 payload points into the parser's own
++            // buffer, which `reset` is already tearing down above.
++            .iterm2_file,
+             => {},
+         }
+ 
+diff --git a/src/terminal/osc/parsers/iterm2.zig b/src/terminal/osc/parsers/iterm2.zig
+index bd64977cf..90861a805 100644
+--- a/src/terminal/osc/parsers/iterm2.zig
++++ b/src/terminal/osc/parsers/iterm2.zig
+@@ -154,6 +154,70 @@ pub fn parse(parser: *Parser, _: ?u8) ?*Command {
+             return &parser.command;
+         },
+ 
++        // File=<args>:<base64> — an inline image.
++        //
++        // The arguments are `k=v` pairs separated by `;`, and the payload follows
++        // the first colon. Only `inline=1` draws: without it iTerm2 downloads the
++        // file instead, and a terminal that drew it anyway would put a picture on
++        // screen where the user asked for a saved file.
++        //
++        // `width` and `height` are taken only in their plain-number form, which
++        // means cells. iTerm2 also allows `Npx`, `N%` and `auto`; those resolve
++        // against a cell size and a window size that this layer does not know, so
++        // they fall through to zero, which the consumer reads as "natural size" —
++        // the same thing `auto` asks for, and a safe answer for the other two.
++        .File => {
++            const value = value_ orelse {
++                parser.command = .invalid;
++                return null;
++            };
++
++            const colon = std.mem.indexOfScalar(u8, value, ':') orelse {
++                parser.command = .invalid;
++                return null;
++            };
++
++            const args = value[0..colon];
++            const payload = value[colon + 1 .. value.len :0];
++            if (payload.len == 0) {
++                parser.command = .invalid;
++                return null;
++            }
++
++            var inline_display: bool = false;
++            var columns: u32 = 0;
++            var rows: u32 = 0;
++
++            var it = std.mem.splitScalar(u8, args, ';');
++            while (it.next()) |pair| {
++                const eql = std.mem.indexOfScalar(u8, pair, '=') orelse continue;
++                const name = pair[0..eql];
++                const val = pair[eql + 1 ..];
++                if (std.mem.eql(u8, name, "inline")) {
++                    inline_display = val.len > 0 and val[0] == '1';
++                } else if (std.mem.eql(u8, name, "width")) {
++                    columns = std.fmt.parseInt(u32, val, 10) catch 0;
++                } else if (std.mem.eql(u8, name, "height")) {
++                    rows = std.fmt.parseInt(u32, val, 10) catch 0;
++                }
++            }
++
++            if (!inline_display) {
++                log.debug("OSC 1337 File without inline=1, ignoring", .{});
++                parser.command = .invalid;
++                return null;
++            }
++
++            parser.command = .{
++                .iterm2_file = .{
++                    .data = payload,
++                    .columns = columns,
++                    .rows = rows,
++                },
++            };
++            return &parser.command;
++        },
++
+         .AddAnnotation,
+         .AddHiddenAnnotation,
+         .Block,
+@@ -165,7 +229,6 @@ pub fn parse(parser: *Parser, _: ?u8) ?*Command {
+         .Custom,
+         .Disinter,
+         .EndCopy,
+-        .File,
+         .FileEnd,
+         .FilePart,
+         .HighlightCursorLine,
+diff --git a/src/terminal/stream.zig b/src/terminal/stream.zig
+index e89c73e66..2007cf3da 100644
+--- a/src/terminal/stream.zig
++++ b/src/terminal/stream.zig
+@@ -120,6 +120,7 @@ pub const Action = union(Key) {
+     progress_report: osc.Command.ProgressReport,
+     start_hyperlink: StartHyperlink,
+     clipboard_contents: ClipboardContents,
++    iterm2_file: Iterm2File,
+     mouse_shape: MouseShape,
+     configure_charset: ConfigureCharset,
+     set_attribute: sgr.Attribute,
+@@ -366,6 +367,28 @@ pub const Action = union(Key) {
+         }
+     };
+ 
++    /// An inline image from OSC 1337 File=. The data is still base64: the
++    /// handler decodes it, because that is where an allocator lives.
++    pub const Iterm2File = struct {
++        data: []const u8,
++        columns: u32,
++        rows: u32,
++
++        pub const C = extern struct {
++            data: lib.String,
++            columns: u32,
++            rows: u32,
++        };
++
++        pub fn cval(self: Iterm2File) Iterm2File.C {
++            return .{
++                .data = .init(self.data),
++                .columns = self.columns,
++                .rows = self.rows,
++            };
++        }
++    };
++
+     pub const ClipboardContents = struct {
+         kind: u8,
+         data: []const u8,
+@@ -1996,6 +2019,14 @@ pub fn Stream(comptime Handler: type) type {
+                     try self.handler.vt(.report_pwd, .{ .url = v.value });
+                 },
+ 
++                .iterm2_file => |v| {
++                    try self.handler.vt(.iterm2_file, .{
++                        .data = v.data,
++                        .columns = v.columns,
++                        .rows = v.rows,
++                    });
++                },
++
+                 .mouse_shape => |v| {
+                     const shape = MouseShape.fromString(v.value) orelse {
+                         @branchHint(.unlikely);
+diff --git a/src/terminal/stream_readonly.zig b/src/terminal/stream_readonly.zig
+index 5b97bebfa..985683953 100644
+--- a/src/terminal/stream_readonly.zig
++++ b/src/terminal/stream_readonly.zig
+@@ -187,6 +187,7 @@ pub const Handler = struct {
+             .show_desktop_notification,
+             .progress_report,
+             .clipboard_contents,
++            .iterm2_file,
+             .title_push,
+             .title_pop,
+             => {},
+diff --git a/src/termio/stream_handler.zig b/src/termio/stream_handler.zig
+index 8c1b5b8ab..3f4480221 100644
+--- a/src/termio/stream_handler.zig
++++ b/src/termio/stream_handler.zig
+@@ -11,6 +11,7 @@ const renderer = @import("../renderer.zig");
+ const termio = @import("../termio.zig");
+ const terminal = @import("../terminal/main.zig");
+ const terminfo = @import("../terminfo/main.zig");
++const wuffs = @import("wuffs");
+ const posix = std.posix;
+ 
+ const log = std.log.scoped(.io_handler);
+@@ -320,6 +321,7 @@ pub const StreamHandler = struct {
+             .progress_report => self.progressReport(value),
+             .start_hyperlink => try self.startHyperlink(value.uri, value.id),
+             .clipboard_contents => try self.clipboardContents(value.kind, value.data),
++            .iterm2_file => self.iterm2File(value.data, value.columns, value.rows),
+             .semantic_prompt => try self.semanticPrompt(value),
+             .mouse_shape => try self.setMouseShape(value),
+             .configure_charset => self.configureCharset(value.slot, value.charset),
+@@ -1102,6 +1104,92 @@ pub const StreamHandler = struct {
+         try self.terminal.semanticPrompt(cmd);
+     }
+ 
++    /// An inline image from OSC 1337 File=, drawn through the Kitty graphics
++    /// machinery rather than through a second implementation of the same idea.
++    ///
++    /// The two protocols disagree about how an image is announced and agree about
++    /// what happens next: decode it, store it, place it at the cursor, move the
++    /// cursor past it. That second half already exists here, is already tested,
++    /// and already has a renderer behind it. So this translates one into the
++    /// other rather than growing a parallel path that would drift from it.
++    ///
++    /// PNG is handed over untouched, because Kitty's own transmission format
++    /// covers it and the decode happens downstream. JPEG has no place in that
++    /// format, so it is decoded here — wuffs is already vendored for the PNG
++    /// path — and handed over as raw RGBA. Anything else is dropped: a terminal
++    /// that guesses at a format it cannot read draws noise.
++    ///
++    /// Failures are logged and swallowed. A picture that will not decode is not
++    /// a reason to tear down the stream that carried it.
++    fn iterm2File(
++        self: *StreamHandler,
++        b64: []const u8,
++        columns: u32,
++        rows: u32,
++    ) void {
++        const alloc = self.alloc;
++
++        const decoder = std.base64.standard.Decoder;
++        const size = decoder.calcSizeForSlice(b64) catch {
++            log.warn("OSC 1337 File: payload is not valid base64", .{});
++            return;
++        };
++        const bytes = alloc.alloc(u8, size) catch return;
++        defer alloc.free(bytes);
++        decoder.decode(bytes, b64) catch {
++            log.warn("OSC 1337 File: payload is not valid base64", .{});
++            return;
++        };
++
++        const png_magic = "\x89PNG\r\n\x1a\n";
++        const jpeg_magic = "\xff\xd8\xff";
++
++        var transmission: terminal.kitty.graphics.Transmission = .{
++            .medium = .direct,
++        };
++        var payload: []const u8 = bytes;
++        var decoded: ?wuffs.ImageData = null;
++        defer if (decoded) |d| alloc.free(d.data);
++
++        if (std.mem.startsWith(u8, bytes, png_magic)) {
++            transmission.format = .png;
++        } else if (std.mem.startsWith(u8, bytes, jpeg_magic)) {
++            const image = wuffs.jpeg.decode(alloc, bytes) catch {
++                log.warn("OSC 1337 File: jpeg would not decode", .{});
++                return;
++            };
++            decoded = image;
++            transmission.format = .rgba;
++            transmission.width = image.width;
++            transmission.height = image.height;
++            payload = image.data;
++        } else {
++            log.warn("OSC 1337 File: unsupported image format", .{});
++            return;
++        }
++
++        transmission.size = std.math.cast(u32, payload.len) orelse {
++            log.warn("OSC 1337 File: image too large", .{});
++            return;
++        };
++
++        var cmd: terminal.kitty.graphics.Command = .{
++            .control = .{ .transmit_and_display = .{
++                .transmission = transmission,
++                .display = .{
++                    .columns = columns,
++                    .rows = rows,
++                    .cursor_movement = .after,
++                },
++            } },
++            .data = payload,
++        };
++
++        // The response is for a client that asked a question; this one did not,
++        // and iTerm2's protocol has nowhere to put an answer.
++        _ = self.terminal.kittyGraphics(alloc, &cmd);
++    }
++
+     fn reportPwd(self: *StreamHandler, url: []const u8) !void {
+         // Special handling for the empty URL. We treat the empty URL
+         // as resetting the pwd as if we never saw a pwd. I can't find any
