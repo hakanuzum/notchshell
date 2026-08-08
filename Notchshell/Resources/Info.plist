@@ -79,7 +79,7 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>New Terminal at Folder</string>
+				<string>New Notchshell Tab Here</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>openTabAtFolder</string>

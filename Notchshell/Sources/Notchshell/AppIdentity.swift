@@ -75,7 +75,13 @@ enum AppIdentity {
     /// and shown to the user in Settings; the two must agree or Settings tells people
     /// to look for a menu item that does not exist. `PermissionDeclarationTests`
     /// checks it against the plist.
-    static let finderServiceTitle = "New Terminal at Folder"
+    /// The Finder service's menu title, which has to name this app.
+    ///
+    /// It used to read "New Terminal at Folder" — the same words Apple's own Terminal
+    /// registers. Finder listed both, identically, with nothing to tell them apart, so
+    /// the entry was effectively unusable. Confirmed with `pbs -dump_pboard`: two
+    /// services, one title.
+    static let finderServiceTitle = "New Notchshell Tab Here"
 
     /// Scratch paths used by the `--debug-window` harness.
     static func debugScratchPath(_ suffix: String) -> String { "/tmp/\(slug)-\(suffix)" }

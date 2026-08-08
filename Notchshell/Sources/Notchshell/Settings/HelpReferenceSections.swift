@@ -30,6 +30,20 @@ struct OpenFromElsewhereSection: View {
                     Text("right click a folder › Services › \(AppIdentity.finderServiceTitle)")
                         .font(.caption)
                 }
+                // Both are macOS features rather than anything this app installs, which
+                // is why they work without a Finder extension — and an extension is not
+                // an option while the build is signed ad-hoc, because macOS will not
+                // load one that is not properly signed.
+                GridRow {
+                    Text("Toolbar").font(.caption).foregroundColor(.secondary)
+                    Text("⌘-drag \(AppIdentity.displayName).app onto the Finder toolbar, then click it in any folder")
+                        .font(.caption)
+                }
+                GridRow {
+                    Text("Shortcut").font(.caption).foregroundColor(.secondary)
+                    Text("give that service a key in System Settings › Keyboard › Keyboard Shortcuts › Services")
+                        .font(.caption)
+                }
                 GridRow {
                     Text("Anywhere").font(.caption).foregroundColor(.secondary)
                     Text(verbatim: "open -a \(AppIdentity.displayName) <folder>")

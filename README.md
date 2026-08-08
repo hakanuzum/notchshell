@@ -110,10 +110,18 @@ notchshell              # just drop the terminal
 ```
 
 macOS has no "default terminal" setting, so Notchshell answers the other routes too:
-Finder's *Services → New Notchshell Tab Here*, `open -a Notchshell <path>`, and the
-`notchshell://` URL scheme. In VS Code, point `"terminal.external.osxExec"` at
-`Notchshell.app` and *Open in External Terminal* lands here. Help (<kbd>⌘</kbd> <kbd>/</kbd>)
-lists them all.
+`open -a Notchshell <path>`, the `notchshell://` URL scheme, and Finder. In VS Code,
+point `"terminal.external.osxExec"` at `Notchshell.app` and *Open in External Terminal*
+lands here.
+
+**From Finder**, two ways, neither of which needs anything installed:
+
+- **A toolbar button.** Hold <kbd>⌘</kbd> and drag `Notchshell.app` onto the Finder
+  toolbar. It stays there; click it in any folder to get a tab in that folder.
+- **A keyboard shortcut.** Notchshell registers a Finder service, *New Notchshell Tab
+  Here*, under right-click → Services. Give it a key of its own in **System Settings →
+  Keyboard → Keyboard Shortcuts → Services** and a folder opens with one keystroke,
+  without the menu.
 
 ## Shortcuts
 
