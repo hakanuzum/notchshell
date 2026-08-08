@@ -34,6 +34,11 @@ final class TerminalNotifier: NSObject {
     private var authorizationInFlight = false
     private var pending: [Item] = []
 
+    /// Tab id → the identifier of the notification currently showing for it, so the
+    /// previous one can be taken away before a new one is posted. See `post`.
+    private var liveIdentifiers: [String: String] = [:]
+    private var sequence = 0
+
     private struct Item {
         let title: String
         let subtitle: String
@@ -75,8 +80,9 @@ final class TerminalNotifier: NSObject {
     func clear(tabID: String) {
         guard !AppIdentity.isTestEnvironment else { return }
         pending.removeAll { $0.tabID == tabID }
+        guard let identifier = liveIdentifiers.removeValue(forKey: tabID) else { return }
         UNUserNotificationCenter.current()
-            .removeDeliveredNotifications(withIdentifiers: [tabID])
+            .removeDeliveredNotifications(withIdentifiers: [identifier])
     }
 
     private func requestAuthorization() {
@@ -113,10 +119,24 @@ final class TerminalNotifier: NSObject {
             content.sound = .default
         }
 
-        // One live notification per tab: an agent that asks twice while you are away
-        // should leave one entry saying so, not a stack of them. Reusing the tab id as
-        // the request id makes the second delivery replace the first.
-        let request = UNNotificationRequest(identifier: item.tabID, content: content, trigger: nil)
+        // Still one live notification per tab — an agent that asks twice while you are
+        // away should leave one entry saying so, not a stack of them — but by taking
+        // the old one away, not by reusing its identifier.
+        //
+        // Reusing it was the bug. macOS treats a repeated identifier as an edit of the
+        // notification already delivered: the text changes in Notification Centre and
+        // nothing alerts. Measured in the notification database — a second call left
+        // the record count unchanged and only moved its timestamp, so the second time
+        // an agent asked for you, you were never told.
+        if let previous = liveIdentifiers[item.tabID] {
+            UNUserNotificationCenter.current()
+                .removeDeliveredNotifications(withIdentifiers: [previous])
+        }
+        sequence += 1
+        let identifier = "\(item.tabID)#\(sequence)"
+        liveIdentifiers[item.tabID] = identifier
+
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
                 os_log(.error, "Notification delivery failed: %{public}@",
