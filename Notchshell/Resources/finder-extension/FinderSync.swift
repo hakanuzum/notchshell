@@ -81,11 +81,16 @@ final class NotchshellFinderSync: FIFinderSync {
     override func menu(for menuKind: FIMenuKind) -> NSMenu {
         let menu = NSMenu(title: "")
         let title = menuKind == .toolbarItemMenu ? "Open Terminal" : "New Terminal"
-        // No icon on the item. Dropped from the toolbar button it would repeat the mark
-        // you just clicked, and in the right-click menu the words are enough.
-        menu.addItem(NSMenuItem(title: title,
-                                action: #selector(openHere(_:)),
-                                keyEquivalent: ""))
+        let item = NSMenuItem(title: title,
+                              action: #selector(openHere(_:)),
+                              keyEquivalent: "")
+        // The mark in the right-click menu, where every other item has one and a bare
+        // line reads as unfinished — but not under the toolbar button, where it would
+        // repeat the mark you just clicked to get there.
+        if menuKind != .toolbarItemMenu {
+            item.image = toolbarItemImage
+        }
+        menu.addItem(item)
         return menu
     }
 
