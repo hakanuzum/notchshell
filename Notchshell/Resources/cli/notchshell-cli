@@ -24,6 +24,28 @@ while [ -L "$self" ]; do
 done
 app=$(cd "$(dirname "$self")/../.." && pwd)   # …/Notchshell.app
 
+# Whichever copy of the app is already running owns the bundle identifier, and macOS
+# routes by identity rather than by path. Handing `open` a *different* copy of it — the
+# everyday case being a build tree beside the installed app — is neither an error nor a
+# launch: the request is dropped, nothing appears, and `open` still exits 0. Ask
+# LaunchServices who is answering to our identifier and address that one instead, out
+# loud, because a command that quietly drives a different copy than the one it lives in
+# is its own kind of confusing.
+bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist" 2>/dev/null || true)
+if [ -n "$bundle_id" ]; then
+    asn=$(lsappinfo find "bundleid=$bundle_id" 2>/dev/null | head -1 || true)
+    if [ -n "$asn" ]; then
+        running=$(lsappinfo info -only bundlepath "$asn" 2>/dev/null |
+                  sed -n 's/.*"LSBundlePath"="\([^"]*\)".*/\1/p' || true)
+        running=${running%/}
+        if [ -n "$running" ] && [ "$running" != "${app%/}" ]; then
+            echo "notchshell: a different copy is already running; sending this there:" >&2
+            echo "  $running" >&2
+            app=$running
+        fi
+    fi
+fi
+
 usage() {
     cat <<EOF
 usage: notchshell [path]
