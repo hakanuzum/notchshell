@@ -257,4 +257,21 @@ fi
 
 echo "==> Installed: /Applications/${INSTALL_NAME}.app"
 
+# Take the copy we just built out of the running system, leaving only the installed one.
+#
+# What is left behind here is not inert. `build/Notchshell.app` carries the same bundle
+# identifier as the app in /Applications and a Finder extension with the same extension
+# identifier, and macOS indexes both by identity: with two enabled registrations of
+# `com.notchshell.app.finder`, Finder starts *neither* — the toolbar button is still
+# there and draws empty, which reads as a broken build rather than as two of them.
+# Measured twice: removing this registration brought the extension straight back.
+#
+# The app copy is the same trap one level up (see the CLI, which redirects around it),
+# but that one cannot be unregistered — LaunchServices re-registers a bundle it can see.
+# So: do not leave a build copy *running* while testing anything that opens the app from
+# outside.
+if [ "$SIDE_BY_SIDE" != 1 ]; then
+    pluginkit -r "$APPEX" 2>/dev/null || true
+fi
+
 echo "Done."

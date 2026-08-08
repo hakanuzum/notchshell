@@ -41,6 +41,7 @@ struct NotchshellApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let windowController = WindowController()
     private var statusItem: NSStatusItem!
+    private var restartToUpdateItem: NSMenuItem!
     private var controlServer: ControlServer?
     private var mcpHTTPServer: MCPHTTPServer?
     private var debugWindow: DebugTerminalWindow?
@@ -174,6 +175,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let versionItem = NSMenuItem(title: "\(AppIdentity.displayName) v\(version)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
         menu.addItem(versionItem)
+
+        // Under the version it replaces, and only there when an update is actually
+        // waiting — `menuWillOpen` decides that, so the menu never claims one is ready
+        // after it has been installed. Hidden, it leaves the menu exactly as it was.
+        restartToUpdateItem = NSMenuItem(title: "Restart to Update",
+                                         action: #selector(installWaitingUpdate),
+                                         keyEquivalent: "")
+        restartToUpdateItem.target = self
+        restartToUpdateItem.isHidden = true
+        menu.addItem(restartToUpdateItem)
+
         menu.addItem(.separator())
 
         let toggleItem = NSMenuItem(title: "Toggle Terminal", action: #selector(toggleTerminal), keyEquivalent: "")
@@ -201,6 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let quitItem = NSMenuItem(title: "Quit \(AppIdentity.displayName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
 
+        menu.delegate = self
         statusItem.menu = menu
     }
 
@@ -244,6 +257,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SparkleUpdater.shared.checkForUpdates()
     }
 
+    @objc private func installWaitingUpdate() {
+        SparkleUpdater.shared.installWaitingUpdate()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         windowController.tabManager.saveTabState()
     }
@@ -262,5 +279,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    /// The waiting-update line is decided as the menu opens rather than when it is built,
+    /// because an update arrives long after launch and may be installed while the app runs.
+    func menuWillOpen(_ menu: NSMenu) {
+        guard let version = SparkleUpdater.shared.waitingVersion else {
+            restartToUpdateItem.isHidden = true
+            return
+        }
+        restartToUpdateItem.title = "Update to \(version) and Restart"
+        restartToUpdateItem.isHidden = false
     }
 }

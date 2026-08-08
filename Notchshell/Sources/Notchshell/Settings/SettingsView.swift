@@ -77,6 +77,8 @@ private struct FillingSegmentedControl<Tag: Hashable>: NSViewRepresentable {
 /// the real system appearance rather than a constant.
 struct SettingsView: View {
     @ObservedObject var windowController: WindowController
+    /// Observed, not read once: an update can finish downloading while this window is open.
+    @ObservedObject private var updater = SparkleUpdater.shared
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("apiAccess") private var apiAccess: String = "ask"
@@ -410,6 +412,14 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 advancedButton("Open Config") { GhosttyApp.shared.openConfig() }
                 advancedButton("Reload Config") { GhosttyApp.shared.reloadConfig() }
+                // Only when one is actually waiting. Sparkle has downloaded it and would
+                // otherwise install it the next time the app quits, without bringing it
+                // back; this installs it now and the app returns.
+                if let version = updater.waitingVersion {
+                    advancedButton("Update to \(version) and Restart") {
+                        SparkleUpdater.shared.installWaitingUpdate()
+                    }
+                }
                 advancedButton("Check for Updates…") { SparkleUpdater.shared.checkForUpdates() }
                     .disabled(!SparkleUpdater.shared.canCheckForUpdates)
                 advancedButton("Quit \(AppIdentity.displayName)",
