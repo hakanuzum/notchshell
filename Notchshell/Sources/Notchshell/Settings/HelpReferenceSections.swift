@@ -30,10 +30,15 @@ struct OpenFromElsewhereSection: View {
                     Text("right click a folder › Services › \(AppIdentity.finderServiceTitle)")
                         .font(.caption)
                 }
-                // Both are macOS features rather than anything this app installs, which
-                // is why they work without a Finder extension — and an extension is not
-                // an option while the build is signed ad-hoc, because macOS will not
-                // load one that is not properly signed.
+                // The Service above is a macOS feature rather than anything this app
+                // installs, which is why it works whether or not the extension is on.
+                // The extension is the better route and it does load under an ad-hoc
+                // signature, which an older note here claimed it would not.
+                GridRow {
+                    Text("Extension").font(.caption).foregroundColor(.secondary)
+                    Text("a button in the Finder toolbar and New Terminal in the right-click menu — turn it on in System Settings › General › Login Items & Extensions")
+                        .font(.caption)
+                }
                 GridRow {
                     Text("Toolbar").font(.caption).foregroundColor(.secondary)
                     Text("⌘-drag \(AppIdentity.displayName).app onto the Finder toolbar, then click it in any folder")
@@ -58,6 +63,13 @@ struct OpenFromElsewhereSection: View {
                     Text("Editors").font(.caption).foregroundColor(.secondary)
                     Text(verbatim: "\"terminal.external.osxExec\": \"\(AppIdentity.displayName).app\"")
                         .font(.system(size: 11, design: .monospaced))
+                }
+                // The way back out, which belongs beside the ways in rather than in a
+                // section of its own.
+                GridRow {
+                    Text("Back out").font(.caption).foregroundColor(.secondary)
+                    Text("the arrow button on the tab bar hands this tab's folder to Finder or an editor, and the panel goes down behind it")
+                        .font(.caption)
                 }
             }
 

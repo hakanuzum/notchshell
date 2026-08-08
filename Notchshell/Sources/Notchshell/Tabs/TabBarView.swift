@@ -140,6 +140,10 @@ struct TabBarView: View {
                     }
                 }
 
+                // First of the right-side group: it acts on the tab you are looking at,
+                // while everything after it acts on the panel as a whole.
+                OpenInAppButton(windowController: windowController)
+
                 // Palette — right side
                 Button(action: { showThemePicker.toggle() }) {
                     Image(systemName: "paintpalette")

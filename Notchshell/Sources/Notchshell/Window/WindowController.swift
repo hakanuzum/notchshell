@@ -565,6 +565,18 @@ final class WindowController: ObservableObject {
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
+    /// Go down, and hand focus to `app` rather than to whoever was in front before.
+    ///
+    /// Handing a folder to an editor is the case: the editor comes forward, and half a
+    /// second later `hide` would activate the app that happened to be frontmost when the
+    /// panel came down — taking focus straight back off the editor the user just asked
+    /// for. Naming the destination is the difference between "get out of the way" and
+    /// "get out of the way and then interrupt".
+    func hide(handingFocusTo app: NSRunningApplication?) {
+        if let app { previousApp = app }
+        hide()
+    }
+
     func hide() {
         guard state == .visible else { return }
 
