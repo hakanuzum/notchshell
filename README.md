@@ -67,11 +67,12 @@ A terminal, not a cockpit — it just happens to know which agent is waiting for
 <img src="docs/media/opacity.png" alt="The panel translucent, the desktop showing through">
 <h3>Opacity, font size and height</h3>
 <p>The three things people actually reach for are one click away on the tab bar, not buried in Settings. Drag the handle on the bottom edge to resize the panel.</p>
-</td>
-<td width="50%">
 <h3>Record what you did</h3>
 <p>The camera button records the active tab to MP4 in <code>~/Movies/Notchshell</code>, and can export a GIF from it afterwards.</p>
 <p>Only the terminal is in frame — not the chrome, not the tab bar, not what is behind the panel.</p>
+</td>
+<td width="50%">
+<img src="docs/media/finder.png" alt="A Finder right-click menu with New Terminal in it, and the Notchshell button in the toolbar">
 <h3>Open it where you already are</h3>
 <p><code>notchshell .</code> drops a tab in this folder, the way <code>code .</code> or <code>zed .</code> works.</p>
 <p>In Finder it is already there: a button in the toolbar, and <i>New Terminal</i> in the right-click menu — on a folder, on a file, or on the empty space in the window. Whichever you point at, the tab opens in that folder.</p>
