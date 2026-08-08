@@ -112,6 +112,9 @@ screen; the rest gets out of the way.
 
 ## Reach it from anywhere
 
+Open Help (<kbd>⌘</kbd> <kbd>/</kbd>) once and press **Install Command Line Tool** — it
+links `notchshell` into `~/.local/bin`. Then, from any shell:
+
 ```bash
 notchshell .            # a tab in this folder, like code . or zed .
 notchshell ~/src/app    # or any other
