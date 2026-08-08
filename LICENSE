@@ -22,6 +22,15 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 DEALINGS IN THE SOFTWARE.
 
 ===============================================================================
+ORIGIN
+
+Notchshell began as a fork of macuake (https://github.com/menemy/macuake), a
+Quake-style terminal for macOS by menemy, and substantial portions of this software
+derive from it. macuake states its license as MIT. Those portions remain under the MIT
+License reproduced below, and the terms above do not restrict any rights you have to
+them as obtained from their original author.
+
+===============================================================================
 THIRD-PARTY COMPONENTS
 
 Notchshell bundles components authored by others. Those components remain under their
@@ -30,6 +39,8 @@ from their original authors.
 
 The following are used under the MIT License:
 
+  macuake                Copyright (c) menemy and macuake contributors
+                         (the codebase Notchshell was forked from)
   Ghostty / GhosttyKit   Copyright (c) 2024 Mitchell Hashimoto and Ghostty contributors
   KeyboardShortcuts      Copyright (c) Sindre Sorhus
   iTerm2-Color-Schemes   Copyright (c) the iTerm2-Color-Schemes contributors
