@@ -6,6 +6,8 @@
 
 **One hotkey. The terminal is already open.**
 
+A terminal, not a cockpit — it just happens to know which agent is waiting for you.
+
 Press `⌥ Space` anywhere and it slides down over whatever you were doing.
 Press it again and it is gone.
 
@@ -100,15 +102,17 @@ Finder's *Services → New Notchshell Tab Here*, `open -a Notchshell <path>`, an
 
 ## Shortcuts
 
-| | | | |
-|---|---|---|---|
-| Toggle terminal | `⌥ Space` | Split right · down | `⌘ D` · `⌘ ⇧ D` |
-| Pin / unpin | `⌘ ⇧ P` | Next / previous pane | `⌘ ]` · `⌘ [` |
-| New tab · close | `⌘ T` · `⌘ W` | Zoom pane | `⌘ ⇧ Enter` |
-| Reopen closed tab | `⌘ ⇧ T` | Copy · paste | `⌘ C` · `⌘ V` |
-| Next / previous tab | `⌘ ⇧ ]` · `⌘ ⇧ [` | Clear screen · find | `⌘ K` · `⌘ F` |
-| Go to tab 1–9 | `⌘ 1` – `⌘ 9` | Command palette | `⌘ P` |
-| Rename tab | double-click | Settings · Help | `⌘ ,` · `⌘ /` |
+<table width="100%">
+<tbody>
+<tr><td width="26%">Toggle terminal</td><td width="24%"><code>⌥ Space</code></td><td width="26%">Split right · down</td><td width="24%"><code>⌘ D</code> · <code>⌘ ⇧ D</code></td></tr>
+<tr><td>Pin / unpin</td><td><code>⌘ ⇧ P</code></td><td>Next / previous pane</td><td><code>⌘ ]</code> · <code>⌘ [</code></td></tr>
+<tr><td>New tab · close</td><td><code>⌘ T</code> · <code>⌘ W</code></td><td>Zoom pane</td><td><code>⌘ ⇧ Enter</code></td></tr>
+<tr><td>Reopen closed tab</td><td><code>⌘ ⇧ T</code></td><td>Copy · paste</td><td><code>⌘ C</code> · <code>⌘ V</code></td></tr>
+<tr><td>Next / previous tab</td><td><code>⌘ ⇧ ]</code> · <code>⌘ ⇧ [</code></td><td>Clear screen · find</td><td><code>⌘ K</code> · <code>⌘ F</code></td></tr>
+<tr><td>Go to tab 1–9</td><td><code>⌘ 1</code> – <code>⌘ 9</code></td><td>Command palette</td><td><code>⌘ P</code></td></tr>
+<tr><td>Rename tab</td><td>double-click</td><td>Settings · Help</td><td><code>⌘ ,</code> · <code>⌘ /</code></td></tr>
+</tbody>
+</table>
 
 Unpinned, the panel hides when it loses focus — pin it to keep it down. Every shortcut
 above except `⌘ 1`–`⌘ 9`, `⌃ ⇥` and `⌘ /` can be changed in Settings.
