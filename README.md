@@ -74,6 +74,7 @@ A terminal, not a cockpit — it just happens to know which agent is waiting for
 <p>Only the terminal is in frame — not the chrome, not the tab bar, not what is behind the panel.</p>
 <h3>Open it where you already are</h3>
 <p><code>notchshell .</code> drops a tab in this folder, the way <code>code .</code> or <code>zed .</code> works.</p>
+<p>In Finder it is already there: a button in the toolbar, and <i>New Terminal</i> in the right-click menu — on a folder, on a file, or on the empty space in the window. Whichever you point at, the tab opens in that folder.</p>
 </td>
 </tr>
 </tbody>
@@ -115,7 +116,7 @@ point `"terminal.external.osxExec"` at `Notchshell.app` and *Open in External Te
 lands here.
 
 **From Finder**, Notchshell installs an extension that puts it where you are looking:
-a button in the toolbar, and *New Terminal* at the top of the right-click menu. Enable
+a button in the toolbar, and *New Terminal* in the right-click menu. Enable
 it once under **System Settings → General → Login Items & Extensions**.
 
 Opening a folder that already has a tab shows that tab rather than making another, so

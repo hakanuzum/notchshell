@@ -1,8 +1,9 @@
 import Cocoa
 import FinderSync
 
-/// Puts Notchshell in Finder: an item at the top of the right-click menu, and a button
-/// in the toolbar.
+/// Puts Notchshell in Finder: an item in the right-click menu, and a button in the
+/// toolbar. Where in that menu is not ours to choose — macOS collects every extension's
+/// items into one group of its own, below Finder's and above Services.
 ///
 /// The app already answers `open -a`, a Finder service and the `notchshell://` scheme,
 /// but all three ask the user to go and find them. A folder you are already looking at
