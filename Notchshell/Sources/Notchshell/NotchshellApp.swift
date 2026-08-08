@@ -83,6 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // actually something to notify about.
         TerminalNotifier.shared.start()
 
+        // So `notchshell .` works without first being told it exists.
+        CommandLineInstaller.installOnFirstLaunch()
+
         setupStatusItem()
         setupHotkey()
         let cs = ControlServer(windowController: windowController)

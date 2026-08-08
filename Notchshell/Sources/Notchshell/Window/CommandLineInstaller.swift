@@ -42,6 +42,22 @@ enum CommandLineInstaller {
         }?.linkPath
     }
 
+    /// Link the command the first time the app runs, and only the first time.
+    ///
+    /// The command exists to save you a trip to the mouse. Making you find a button in
+    /// Help before `notchshell .` works defeats the whole point of having it — nobody
+    /// goes looking for a setting to enable a shortcut they have not been told about.
+    ///
+    /// Once, though, and not again: removing the link is itself an answer, and putting
+    /// it back on the next launch would be arguing with the person who removed it.
+    static func installOnFirstLaunch() {
+        guard !AppIdentity.isTestEnvironment else { return }
+        let key = "cliInstallAttempted"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        install()
+    }
+
     /// Link the bundled command into the first writable location.
     @discardableResult
     static func install() -> Result {
