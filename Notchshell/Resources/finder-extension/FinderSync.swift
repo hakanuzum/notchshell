@@ -51,24 +51,39 @@ final class NotchshellFinderSync: FIFinderSync {
     ///
     /// Drawn as a template so macOS tints it for the toolbar and inverts it in dark
     /// mode, the way every other toolbar glyph behaves.
-    /// A padded, square copy of the mark rather than the menu-bar one.
     ///
-    /// Finder scales this into a fixed slot, so how big the mark *looks* is decided by
-    /// how much of its own canvas it fills. The menu-bar artwork fills its canvas edge
-    /// to edge — measured, no transparent border at all — so scaled into the same box
-    /// as a system glyph it came out visibly heavier than everything beside it. The
-    /// toolbar copy sits at ~62% of a square canvas, which is where the system's own
-    /// glyphs sit. Setting a smaller `size` does not help: the slot rescales it back.
-    override var toolbarItemImage: NSImage {
+    /// **The size is what makes the button, and it is not the pixel count.** Finder
+    /// takes the toolbar button's *width* from the image's size, then draws the image
+    /// scaled to fit the button's height. The bundled art is 128px at 72dpi, which
+    /// `NSImage` reads as 128×128pt, so the button came out 128pt wide — around three
+    /// times every other item in the toolbar — with a ~16pt mark adrift in the middle
+    /// of all that space. Nothing about the artwork caused it; only that number did.
+    /// OpenInTerminal's toolbar asset measures 23×23pt, which is the same finding read
+    /// from a toolbar that always looked right.
+    ///
+    /// `image.size` alone does not do it — measured, the button stayed 128pt wide. The
+    /// representation has to be resized too: the image crosses an XPC boundary to reach
+    /// Finder and is rebuilt there, and what survives the trip is what the
+    /// representations claim. Resizing them rather than redrawing keeps all 128px as
+    /// retina detail behind a 23pt image.
+    private func mark(side: CGFloat) -> NSImage {
         guard let url = Bundle.main.url(forResource: "NotchshellFinderToolbar",
                                         withExtension: "png"),
               let image = NSImage(contentsOf: url) else {
             return NSImage(systemSymbolName: "apple.terminal",
                            accessibilityDescription: "Notchshell") ?? NSImage()
         }
+        for rep in image.representations {
+            rep.size = NSSize(width: side, height: side)
+        }
+        image.size = NSSize(width: side, height: side)
         image.isTemplate = true
         return image
     }
+
+    /// How big the mark *looks* against the glyph beside it is set twice over: by this,
+    /// and by the ~72% of its own canvas the mark covers (`make-finder-toolbar-icon.swift`).
+    override var toolbarItemImage: NSImage { mark(side: 23) }
 
     // MARK: - Menus
 
@@ -87,8 +102,12 @@ final class NotchshellFinderSync: FIFinderSync {
         // The mark in the right-click menu, where every other item has one and a bare
         // line reads as unfinished — but not under the toolbar button, where it would
         // repeat the mark you just clicked to get there.
+        //
+        // 16pt, not the toolbar's 23: a menu row grows to whatever its image claims, so
+        // the toolbar size would leave this one item standing taller than the rest of
+        // the menu it is joining.
         if menuKind != .toolbarItemMenu {
-            item.image = toolbarItemImage
+            item.image = mark(side: 16)
         }
         menu.addItem(item)
         return menu
