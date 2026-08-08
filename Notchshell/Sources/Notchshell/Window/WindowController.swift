@@ -345,6 +345,20 @@ final class WindowController: ObservableObject {
                 return nil
             }
 
+            // ⌘V with something on the clipboard that is not text. A terminal cannot
+            // take a picture, but the agents people run in one take a path — and after
+            // a screenshot, or a file copied in Finder, a path is exactly what the
+            // clipboard does not hand over. Text pastes are left alone and go to
+            // Ghostty as before.
+            if event.modifierFlags.contains(.command),
+               !event.modifierFlags.contains(.shift),
+               event.keyCode == KeyCode.v,
+               let path = PastedImage.pathToPaste() {
+                self.tabManager.activeTab?.instance?.backend
+                    .send(text: PastedImage.shellQuoted(path))
+                return nil
+            }
+
             // Whatever the user set in Settings wins over the built-in bindings, so it
             // is checked first — the point of a configurable shortcut is that it beats
             // the default.
@@ -513,7 +527,15 @@ final class WindowController: ObservableObject {
     func show() {
         guard state == .hidden else { return }
         showTimestamp = Date()
-        previousApp = NSWorkspace.shared.frontmostApplication
+        // Not ourselves. Dropping the panel while this app is already frontmost — from
+        // the menu bar item, or a second toggle — would otherwise record Notchshell as
+        // the app to return to, and hiding would "restore" focus to the app that has
+        // just put its only window away. It stays active with nothing on screen, and
+        // every ⌘T and ⌘W after that goes to a terminal the user cannot see.
+        if let front = NSWorkspace.shared.frontmostApplication,
+           front.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            previousApp = front
+        }
 
         repositionPanel()
 
@@ -570,9 +592,15 @@ final class WindowController: ObservableObject {
             guard let self, self.state == .hidden else { return }
             self.tabManager.setSurfacesVisible(false)
             self.panel.orderOut(nil)
+            // Hand focus back, and if there is nobody to hand it to, put it down.
+            // Staying active with no window is what makes an invisible terminal eat the
+            // shortcuts meant for whatever is on screen.
             if let prev = self.previousApp, !prev.isTerminated {
                 prev.activate()
+            } else {
+                NSApp.hide(nil)
             }
+            self.previousApp = nil
         }
     }
 

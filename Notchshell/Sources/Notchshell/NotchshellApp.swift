@@ -85,6 +85,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // So `notchshell .` works without first being told it exists.
         CommandLineInstaller.installOnFirstLaunch()
+        // Same reason: the extension ships switched off, and the switch is somewhere
+        // nobody looks.
+        FinderExtensionInstaller.enableOnFirstLaunch()
 
         setupStatusItem()
         setupHotkey()
@@ -166,8 +169,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
 
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        let versionItem = NSMenuItem(title: "\(AppIdentity.displayName) v\(version) (\(build))", action: nil, keyEquivalent: "")
+        // Marketing version only. The build number is for the updater to compare, not
+        // for the person reading a menu — it says nothing they can act on.
+        let versionItem = NSMenuItem(title: "\(AppIdentity.displayName) v\(version)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
         menu.addItem(versionItem)
         menu.addItem(.separator())
