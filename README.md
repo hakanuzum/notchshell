@@ -88,40 +88,273 @@ A terminal, not a cockpit — it just happens to know which agent is waiting for
 The terminal is [Ghostty](https://ghostty.org), so this first table is mostly its
 answers rather than ours — which is the point of embedding it.
 
-| Terminal | Notchshell | Ghostty | iTerm2 | WezTerm | Kitty | Alacritty |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| GPU rendering | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| True colour | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Ligatures | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Unicode | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Styled underlines | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Synchronized output | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Kitty keyboard | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
-| OSC 52 clipboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| OSC 8 hyperlinks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Shell integration | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Notifications | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Kitty graphics | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| iTerm2 images | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| Sixel | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
-| Tabs | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Split panes | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Multiplexer | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+<table width="100%">
+<thead>
+<tr>
+<th width="22%" align="left">Terminal</th>
+<th width="13%" align="center">Notchshell</th>
+<th width="13%" align="center">Ghostty</th>
+<th width="13%" align="center">iTerm2</th>
+<th width="13%" align="center">WezTerm</th>
+<th width="13%" align="center">Kitty</th>
+<th width="13%" align="center">Alacritty</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GPU rendering</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>True colour</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>Ligatures</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Unicode</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>Styled underlines</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>Synchronized output</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>Kitty keyboard</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>OSC 52 clipboard</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>OSC 8 hyperlinks</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>Shell integration</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Notifications</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Kitty graphics</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>iTerm2 images</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Sixel</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Tabs</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Split panes</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Multiplexer</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+</tbody>
+</table>
 
 The second is the app around it, and the reason this exists at all.
 
-| App | Notchshell | Ghostty | iTerm2 | WezTerm | Kitty | Alacritty |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| Drop-down panel | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Every Space | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Agent awareness | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Bundled themes | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Command palette | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| Recording | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Finder extension | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Socket + MCP | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Session restore | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Platform | macOS | macOS · Linux | macOS | macOS · Linux · Windows | macOS · Linux | 4 platforms |
+<table width="100%">
+<thead>
+<tr>
+<th width="22%" align="left">App</th>
+<th width="13%" align="center">Notchshell</th>
+<th width="13%" align="center">Ghostty</th>
+<th width="13%" align="center">iTerm2</th>
+<th width="13%" align="center">WezTerm</th>
+<th width="13%" align="center">Kitty</th>
+<th width="13%" align="center">Alacritty</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Drop-down panel</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Every Space</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Agent awareness</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Bundled themes</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Command palette</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Recording</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Finder extension</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Socket + MCP</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Session restore</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+</tbody>
+</table>
 
 Two gaps, both deliberate. Sixel is Ghostty's call — it does the Kitty graphics
 protocol instead. A multiplexer means detach and re-attach, and tabs, splits and
