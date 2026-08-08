@@ -85,13 +85,14 @@ A terminal, not a cockpit — it just happens to know which agent is waiting for
 
 ## How it compares
 
-The terminal is [Ghostty](https://ghostty.org), so this first table is mostly its
-answers rather than ours — which is the point of embedding it.
+The terminal is [Ghostty](https://ghostty.org), so the first half is mostly its
+answers rather than ours — which is the point of embedding it. The second is the app
+around it, and the reason this exists at all.
 
 <table width="100%">
 <thead>
 <tr>
-<th width="22%" align="left">Terminal</th>
+<th width="22%" align="left"></th>
 <th width="13%" align="center">Notchshell</th>
 <th width="13%" align="center">Ghostty</th>
 <th width="13%" align="center">iTerm2</th>
@@ -101,6 +102,7 @@ answers rather than ours — which is the point of embedding it.
 </tr>
 </thead>
 <tbody>
+<tr><th colspan="7" align="left">Terminal</th></tr>
 <tr>
 <td>GPU rendering</td>
 <td align="center">✅</td>
@@ -254,24 +256,7 @@ answers rather than ours — which is the point of embedding it.
 <td align="center">❌</td>
 <td align="center">❌</td>
 </tr>
-</tbody>
-</table>
-
-The second is the app around it, and the reason this exists at all.
-
-<table width="100%">
-<thead>
-<tr>
-<th width="22%" align="left">App</th>
-<th width="13%" align="center">Notchshell</th>
-<th width="13%" align="center">Ghostty</th>
-<th width="13%" align="center">iTerm2</th>
-<th width="13%" align="center">WezTerm</th>
-<th width="13%" align="center">Kitty</th>
-<th width="13%" align="center">Alacritty</th>
-</tr>
-</thead>
-<tbody>
+<tr><th colspan="7" align="left">App</th></tr>
 <tr>
 <td>Drop-down panel</td>
 <td align="center">✅</td>
