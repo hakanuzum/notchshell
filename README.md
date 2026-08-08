@@ -113,7 +113,7 @@ they are the reason it exists.
 | **Same session on every Space** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | | | | | | | |
 | **Knows which AI agent is running** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Bundled themes** | ✅ 602 | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Bundled themes** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **Command palette** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **Records the terminal to MP4/GIF** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Finder extension, both directions** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -121,26 +121,12 @@ they are the reason it exists.
 | **Restores tabs, splits and folders** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Platforms | macOS | macOS · Linux | macOS | macOS · Linux · Windows | macOS · Linux | macOS · Linux · Windows · BSD |
 
-The Notchshell and Ghostty columns are read from the pinned Ghostty source in
-`vendor/ghostty` and from this app's own code; the rest are each project's documented
-behaviour as of August 2026. For a wider field —
-[Terminal Trove](https://terminaltrove.com/compare/terminals/) tracks 44 terminals, of
-which 21 are GPU-accelerated, 15 do Sixel and 8 speak the Kitty graphics protocol.
+Two gaps, both deliberate. Sixel is Ghostty's call — it does the Kitty graphics
+protocol instead. A built-in multiplexer means detach and re-attach, and tabs, splits
+and session restore cover what that is usually reached for.
 
-Two honest gaps. Sixel is Ghostty's call rather than this app's — it implements the
-Kitty graphics protocol instead, having [dropped Sixel from its
-roadmap](https://github.com/ghostty-org/ghostty/discussions/2496) in 2024. The other is
-a built-in multiplexer, which means detach and re-attach: WezTerm has one, and tabs,
-splits and session restore cover the rest of what people reach for on one machine.
-
-iTerm2's inline images used to be a third gap and are not any more: Ghostty parses OSC
-1337 for the working directory but not for pictures, so this app adds the `File=`
-branch and hands the result to the Kitty graphics pipeline that was already there. It
-lives in `vendor/ghostty-patches` and covers PNG and JPEG.
-
-"Same session on every Space" is the one people notice second: the panel joins every
-Space, so the hotkey brings down the shell you were already in rather than a new window
-wherever you happen to be.
+The panel joins every Space, so the hotkey brings down the shell you were already in
+rather than a new window wherever you happen to be.
 
 ---
 
