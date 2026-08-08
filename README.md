@@ -92,13 +92,13 @@ around it, and the reason this exists at all.
 <table width="100%">
 <thead>
 <tr>
-<th width="22%" align="left"></th>
-<th width="13%" align="center">Notchshell</th>
-<th width="13%" align="center">Ghostty</th>
-<th width="13%" align="center">iTerm2</th>
-<th width="13%" align="center">WezTerm</th>
-<th width="13%" align="center">Kitty</th>
-<th width="13%" align="center">Alacritty</th>
+<th align="left"></th>
+<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;Notchshell&nbsp;&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;Ghostty&nbsp;&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;iTerm2&nbsp;&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;WezTerm&nbsp;&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;Kitty&nbsp;&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;Alacritty&nbsp;&nbsp;&nbsp;&nbsp;</th>
 </tr>
 </thead>
 <tbody>
@@ -396,11 +396,11 @@ you are in.
 
 <table width="100%">
 <tbody>
-<tr><td width="26%">Toggle terminal</td><td width="24%"><kbd>⌥</kbd> <kbd>Space</kbd></td><td width="26%">Split right · down</td><td width="24%"><kbd>⌘</kbd> <kbd>D</kbd> · <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>D</kbd></td></tr>
-<tr><td>Pin / unpin</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>P</kbd></td><td>Next / previous pane</td><td><kbd>⌘</kbd> <kbd>]</kbd> · <kbd>⌘</kbd> <kbd>[</kbd></td></tr>
-<tr><td>New tab · clone · close</td><td><kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌘</kbd> <kbd>W</kbd></td><td>Zoom pane</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↩</kbd></td></tr>
+<tr><td>Toggle terminal</td><td><kbd>⌥</kbd> <kbd>Space</kbd></td><td>Split right&nbsp;· down</td><td><kbd>⌘</kbd> <kbd>D</kbd> · <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>D</kbd></td></tr>
+<tr><td>Pin / unpin</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>P</kbd></td><td>Next&nbsp;/ previous pane</td><td><kbd>⌘</kbd> <kbd>]</kbd> · <kbd>⌘</kbd> <kbd>[</kbd></td></tr>
+<tr><td>New tab&nbsp;· clone&nbsp;· close</td><td><kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌘</kbd> <kbd>W</kbd></td><td>Zoom pane</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↩</kbd></td></tr>
 <tr><td>Reopen closed tab</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>T</kbd></td><td>Copy · paste</td><td><kbd>⌘</kbd> <kbd>C</kbd> · <kbd>⌘</kbd> <kbd>V</kbd></td></tr>
-<tr><td>Next / previous tab</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>]</kbd> · <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>[</kbd></td><td>Clear screen · find</td><td><kbd>⌘</kbd> <kbd>K</kbd> · <kbd>⌘</kbd> <kbd>F</kbd></td></tr>
+<tr><td>Next&nbsp;/ previous tab</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>]</kbd> · <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>[</kbd></td><td>Clear screen&nbsp;· find</td><td><kbd>⌘</kbd> <kbd>K</kbd> · <kbd>⌘</kbd> <kbd>F</kbd></td></tr>
 <tr><td>Go to tab 1–9</td><td><kbd>⌘</kbd> <kbd>1</kbd> – <kbd>⌘</kbd> <kbd>9</kbd></td><td>Command palette</td><td><kbd>⌘</kbd> <kbd>P</kbd></td></tr>
 <tr><td>Rename tab</td><td>double-click</td><td>Settings · Help</td><td><kbd>⌘</kbd> <kbd>,</kbd> · <kbd>⌘</kbd> <kbd>/</kbd></td></tr>
 </tbody>
