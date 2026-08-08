@@ -93,12 +93,12 @@ around it, and the reason this exists at all.
 <thead>
 <tr>
 <th align="left"></th>
-<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;Notchshell&nbsp;&nbsp;&nbsp;&nbsp;</th>
-<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;Ghostty&nbsp;&nbsp;&nbsp;&nbsp;</th>
-<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;iTerm2&nbsp;&nbsp;&nbsp;&nbsp;</th>
-<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;WezTerm&nbsp;&nbsp;&nbsp;&nbsp;</th>
-<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;Kitty&nbsp;&nbsp;&nbsp;&nbsp;</th>
-<th align="center">&nbsp;&nbsp;&nbsp;&nbsp;Alacritty&nbsp;&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;Notchshell&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;Ghostty&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;iTerm2&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;WezTerm&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;Kitty&nbsp;&nbsp;&nbsp;</th>
+<th align="center">&nbsp;&nbsp;&nbsp;Alacritty&nbsp;&nbsp;&nbsp;</th>
 </tr>
 </thead>
 <tbody>
