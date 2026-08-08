@@ -138,9 +138,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// A quake terminal has no windows to open, so "open here" means showing the
     /// panel — not creating one.
+    /// Every outside route in — Finder, the CLI, `open -a`, `notchshell://` — lands
+    /// here, and all of them mean "a terminal at this folder".
+    ///
+    /// A tab already sitting there *is* that terminal, so it is shown rather than
+    /// duplicated: clicking the Finder button three times on one folder should not
+    /// leave three identical tabs. When you do want a second shell in the same place,
+    /// that is Clone Tab.
     private func open(_ request: OpenRequest) {
         if let directory = request.directory {
-            windowController.tabManager.addTab(in: directory)
+            if !windowController.tabManager.focusTab(in: directory) {
+                windowController.tabManager.addTab(in: directory)
+            }
         }
         windowController.show()
     }

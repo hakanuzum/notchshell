@@ -97,6 +97,34 @@ cp -R "$PROJECT_ROOT/vendor/ghostty/src/shell-integration/." "$GHOSTTY_RES_DIR/s
 rm -f "$GHOSTTY_RES_DIR/shell-integration/README.md"
 echo "    $(find "$GHOSTTY_RES_DIR/shell-integration" -type d -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ') shells"
 
+echo "==> Building Finder extension..."
+# Built here rather than by SPM, which cannot produce an `.appex`. An app extension is
+# a bundle with an `XPC!` package type and an `NSExtension` dictionary, and its
+# executable is entered through `NSExtensionMain` instead of `main()` — hence the
+# linker's `-e`. Everything else is an ordinary Swift compile.
+FINDER_SRC="$PROJECT_ROOT/Notchshell/Resources/finder-extension"
+APPEX="$APP_BUNDLE/Contents/PlugIns/NotchshellFinder.appex"
+rm -rf "$APPEX"
+mkdir -p "$APPEX/Contents/MacOS"
+cp "$FINDER_SRC/Info.plist" "$APPEX/Contents/Info.plist"
+# Versions come from the app rather than being written twice. They drifted once
+# already between Info.plist and the Help text; two version numbers for one build is
+# the same trap with a shorter fuse.
+for key in CFBundleShortVersionString CFBundleVersion; do
+    value=$(/usr/libexec/PlistBuddy -c "Print :$key" "$APP_BUNDLE/Contents/Info.plist")
+    /usr/libexec/PlistBuddy -c "Set :$key $value" "$APPEX/Contents/Info.plist"
+done
+xcrun swiftc -target arm64-apple-macos14.0 -O \
+    -framework Cocoa -framework FinderSync \
+    -Xlinker -e -Xlinker _NSExtensionMain \
+    -o "$APPEX/Contents/MacOS/NotchshellFinder" \
+    "$FINDER_SRC/FinderSync.swift"
+# The mark goes inside the extension, not read from the app: a Finder Sync extension is
+# sandboxed and the app's Resources are not its to open.
+mkdir -p "$APPEX/Contents/Resources"
+cp "$FINDER_SRC/NotchshellFinderToolbar.png" \
+   "$APPEX/Contents/Resources/NotchshellFinderToolbar.png"
+
 echo "==> Copying command line tool..."
 # Lives beside the app binary, the way Ghostty ships its own CLI. Settings links it
 # onto PATH; keeping the real file in the bundle means the link survives updates and
@@ -168,6 +196,13 @@ else
     SIGN_OPTS=""
     echo "==> Signing (ad-hoc; set NOTCHSHELL_SIGNING_IDENTITY for a Developer ID build)"
 fi
+
+# The extension is nested code, and macOS refuses to load an app extension that is not
+# sandboxed — so it carries its own entitlements rather than the app's, which are the
+# opposite of sandboxed on purpose.
+codesign --force --sign "$SIGN_ID" $SIGN_OPTS \
+    --entitlements "$PROJECT_ROOT/Notchshell/Resources/finder-extension/finder.entitlements" \
+    "$APP_BUNDLE/Contents/PlugIns/NotchshellFinder.appex"
 
 # Sign resource bundles in Resources/
 for bundle in "$APP_BUNDLE"/Contents/Resources/*.bundle; do

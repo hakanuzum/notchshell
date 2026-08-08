@@ -56,6 +56,7 @@ struct ActionShortcut: Equatable {
     var command: Bool = true
     var shift: Bool = false
     var control: Bool = false
+    var option: Bool = false
 
     func matches(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags
@@ -63,12 +64,15 @@ struct ActionShortcut: Equatable {
             && flags.contains(.command) == command
             && flags.contains(.shift) == shift
             && flags.contains(.control) == control
+            && flags.contains(.option) == option
     }
 
-    /// In the order macOS prints modifiers, which is not the order they are declared in.
+    /// In the order macOS prints modifiers — ⌃⌥⇧⌘ — which is not the order they are
+    /// declared in.
     var display: String {
         var out = ""
         if control { out += "⌃" }
+        if option { out += "⌥" }
         if shift { out += "⇧" }
         if command { out += "⌘" }
         return out + KeyCode.symbol(for: keyCode)
@@ -149,6 +153,7 @@ extension ActionShortcut {
         if command { modifiers.insert(.command) }
         if shift { modifiers.insert(.shift) }
         if control { modifiers.insert(.control) }
+        if option { modifiers.insert(.option) }
         return KeyboardShortcuts.Shortcut(
             KeyboardShortcuts.Key(rawValue: Int(keyCode)), modifiers: modifiers
         )

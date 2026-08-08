@@ -166,6 +166,36 @@ final class TabManager: ObservableObject {
         focusTerminalInActiveTab()
     }
 
+    /// Show the tab already sitting in `directory`, if there is one.
+    ///
+    /// Matched on the pane's *live* directory rather than where the tab was opened: a
+    /// tab you started in one project and `cd`'d out of is no longer that project's
+    /// tab, and pretending otherwise would send you somewhere you are not.
+    @discardableResult
+    func focusTab(in directory: String) -> Bool {
+        let wanted = (directory as NSString).standardizingPath
+        guard let index = tabs.firstIndex(where: { tab in
+            guard tab.kind == .terminal, let pm = tab.paneManager else { return false }
+            let current = pm.currentDirectory
+            return !current.isEmpty && (current as NSString).standardizingPath == wanted
+        }) else { return false }
+        selectTab(at: index)
+        return true
+    }
+
+    /// A second shell in the tab's own directory.
+    ///
+    /// The counterweight to reusing tabs. Opening a folder from Finder now lands on the
+    /// tab already there, which is right for "take me to it" and wrong for "give me
+    /// another one" — and wanting two shells in one project is ordinary. `⌘T` opens at
+    /// home, so without this there was no way back to the current directory but typing
+    /// it.
+    func cloneActiveTab() {
+        guard let tab = activeTab, tab.kind == .terminal else { return }
+        let directory = tab.paneManager?.currentDirectory ?? ""
+        addTab(in: directory.isEmpty ? nil : directory)
+    }
+
     func closeTab(id: String) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
 

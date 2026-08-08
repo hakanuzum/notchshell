@@ -37,6 +37,7 @@ struct HelpView: View {
 
                     helpSection("Tabs") {
                         shortcutRow("New tab", "⌘ T")
+                        shortcutRow("Clone tab (same folder)", "⌥ ⌘ T")
                         shortcutRow("Close tab", "⌘ W")
                         shortcutRow("Reopen closed tab", "⌘ ⇧ T")
                         shortcutRow("Next / Previous tab", "⌘ ⇧ ]  /  ⌘ ⇧ [  (configurable in Settings)")

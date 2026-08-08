@@ -28,6 +28,15 @@ enum ActionRegistry {
             isEnabled: { [unowned wc] in wc.tabManager.canReopenClosedTab }
         ) { [unowned wc] in wc.tabManager.reopenClosedTab() })
 
+        // ⌥⌘T, next to ⌘T. Opening a folder from outside now lands on the tab already
+        // there, so this is how you ask for a second shell in the same place — ⌘T opens
+        // at home and would make you type the path back.
+        actions.append(AppAction(
+            id: "tab.clone", title: "Clone Tab", group: .tabs,
+            shortcut: ActionShortcut(keyCode: KeyCode.t, option: true),
+            isEnabled: { [unowned wc] in wc.tabManager.activeTab?.kind == .terminal }
+        ) { [unowned wc] in wc.tabManager.cloneActiveTab() })
+
         // One key, two outcomes, because that is what ⌘W has always done here: it takes
         // the pane if there is more than one, and the tab otherwise.
         actions.append(AppAction(

@@ -114,14 +114,14 @@ macOS has no "default terminal" setting, so Notchshell answers the other routes 
 point `"terminal.external.osxExec"` at `Notchshell.app` and *Open in External Terminal*
 lands here.
 
-**From Finder**, two ways, neither of which needs anything installed:
+**From Finder**, Notchshell installs an extension that puts it where you are looking:
+a button in the toolbar, and *New Terminal* at the top of the right-click menu. Enable
+it once under **System Settings → General → Login Items & Extensions**.
 
-- **A toolbar button.** Hold <kbd>⌘</kbd> and drag `Notchshell.app` onto the Finder
-  toolbar. It stays there; click it in any folder to get a tab in that folder.
-- **A keyboard shortcut.** Notchshell registers a Finder service, *New Notchshell Tab
-  Here*, under right-click → Services. Give it a key of its own in **System Settings →
-  Keyboard → Keyboard Shortcuts → Services** and a folder opens with one keystroke,
-  without the menu.
+Opening a folder that already has a tab shows that tab rather than making another, so
+clicking the toolbar button twice does not leave two of the same. When you do want a
+second shell in the same place, <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>T</kbd> clones the tab
+you are in.
 
 ## Shortcuts
 
@@ -129,7 +129,7 @@ lands here.
 <tbody>
 <tr><td width="26%">Toggle terminal</td><td width="24%"><kbd>⌥</kbd> <kbd>Space</kbd></td><td width="26%">Split right · down</td><td width="24%"><kbd>⌘</kbd> <kbd>D</kbd> · <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>D</kbd></td></tr>
 <tr><td>Pin / unpin</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>P</kbd></td><td>Next / previous pane</td><td><kbd>⌘</kbd> <kbd>]</kbd> · <kbd>⌘</kbd> <kbd>[</kbd></td></tr>
-<tr><td>New tab · close</td><td><kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌘</kbd> <kbd>W</kbd></td><td>Zoom pane</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↩</kbd></td></tr>
+<tr><td>New tab · clone · close</td><td><kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌘</kbd> <kbd>W</kbd></td><td>Zoom pane</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↩</kbd></td></tr>
 <tr><td>Reopen closed tab</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>T</kbd></td><td>Copy · paste</td><td><kbd>⌘</kbd> <kbd>C</kbd> · <kbd>⌘</kbd> <kbd>V</kbd></td></tr>
 <tr><td>Next / previous tab</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>]</kbd> · <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>[</kbd></td><td>Clear screen · find</td><td><kbd>⌘</kbd> <kbd>K</kbd> · <kbd>⌘</kbd> <kbd>F</kbd></td></tr>
 <tr><td>Go to tab 1–9</td><td><kbd>⌘</kbd> <kbd>1</kbd> – <kbd>⌘</kbd> <kbd>9</kbd></td><td>Command palette</td><td><kbd>⌘</kbd> <kbd>P</kbd></td></tr>

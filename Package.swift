@@ -30,6 +30,10 @@ let package = Package(
                 .product(name: "MCP", package: "swift-sdk"),
             ],
             path: "Notchshell/Sources/Notchshell",
+            // The Finder extension is compiled by `build-install.sh` into an `.appex`,
+            // not by SPM — which cannot produce one. Excluded so its source is not
+            // copied into the app as a resource.
+            exclude: ["../../Resources/finder-extension"],
             resources: [
                 .process("../../Resources"),
             ],
