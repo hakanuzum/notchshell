@@ -1,3 +1,17 @@
+diff --git a/src/terminal/kitty/graphics.zig b/src/terminal/kitty/graphics.zig
+index c710f81a1..47f27ffc5 100644
+--- a/src/terminal/kitty/graphics.zig
++++ b/src/terminal/kitty/graphics.zig
+@@ -28,6 +28,9 @@ pub const Image = image.Image;
+ pub const ImageStorage = storage.ImageStorage;
+ pub const RenderPlacement = render.Placement;
+ pub const Response = command.Response;
++// Exported for the same reason Command is: a caller that builds one of these
++// by hand — the iTerm2 inline-image path does — cannot reach into the file.
++pub const Transmission = command.Transmission;
+ 
+ pub const execute = exec.execute;
+ 
 diff --git a/src/terminal/osc.zig b/src/terminal/osc.zig
 index 0086e48bc..2515e448d 100644
 --- a/src/terminal/osc.zig
@@ -136,18 +150,28 @@ index bd64977cf..90861a805 100644
          .FilePart,
          .HighlightCursorLine,
 diff --git a/src/terminal/stream.zig b/src/terminal/stream.zig
-index e89c73e66..2007cf3da 100644
+index e89c73e66..2a528159a 100644
 --- a/src/terminal/stream.zig
 +++ b/src/terminal/stream.zig
-@@ -120,6 +120,7 @@ pub const Action = union(Key) {
-     progress_report: osc.Command.ProgressReport,
-     start_hyperlink: StartHyperlink,
-     clipboard_contents: ClipboardContents,
+@@ -126,6 +126,9 @@ pub const Action = union(Key) {
+     kitty_color_report: kitty.color.OSC,
+     color_operation: ColorOperation,
+     semantic_prompt: SemanticPrompt,
++    // Last, and last in `Key` too: this is `union(Key)`, so the field order
++    // and the name order are one thing.
 +    iterm2_file: Iterm2File,
-     mouse_shape: MouseShape,
-     configure_charset: ConfigureCharset,
-     set_attribute: sgr.Attribute,
-@@ -366,6 +367,28 @@ pub const Action = union(Key) {
+ 
+     pub const Key = lib.Enum(
+         lib_target,
+@@ -223,6 +226,7 @@ pub const Action = union(Key) {
+             "kitty_color_report",
+             "color_operation",
+             "semantic_prompt",
++            "iterm2_file",
+         },
+     );
+ 
+@@ -366,6 +370,28 @@ pub const Action = union(Key) {
          }
      };
  
@@ -176,7 +200,7 @@ index e89c73e66..2007cf3da 100644
      pub const ClipboardContents = struct {
          kind: u8,
          data: []const u8,
-@@ -1996,6 +2019,14 @@ pub fn Stream(comptime Handler: type) type {
+@@ -1996,6 +2022,14 @@ pub fn Stream(comptime Handler: type) type {
                      try self.handler.vt(.report_pwd, .{ .url = v.value });
                  },
  

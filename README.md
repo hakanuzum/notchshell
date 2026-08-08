@@ -85,51 +85,62 @@ A terminal, not a cockpit — it just happens to know which agent is waiting for
 
 ## How it compares
 
-The terminal itself is [Ghostty](https://ghostty.org), so the engine rows below are
-its answers rather than ours — which is the point of embedding it. The rows after the
-rule are the ones this app adds, and they are the reason it exists.
+The terminal itself is [Ghostty](https://ghostty.org), so the engine rows are its
+answers rather than ours — which is the point of embedding it, and why the Ghostty
+column reads almost the same. The rows below the break are the ones this app adds, and
+they are the reason it exists.
 
-Black Box and Rio are shown as a reference point, taken from
-[Terminal Trove's comparison](https://terminaltrove.com/compare/terminals/); of the 44
-terminals it tracks, 21 are GPU-accelerated, 15 do Sixel and 8 speak the Kitty graphics
-protocol.
+| | Notchshell | Ghostty | iTerm2 | WezTerm | Kitty | Alacritty |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| GPU acceleration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| True colour (24-bit) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Font ligatures | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Unicode | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Styled underlines | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Synchronized output | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Kitty keyboard protocol | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| OSC 52 clipboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| OSC 8 hyperlinks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Shell integration | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Desktop notifications | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Kitty graphics protocol | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| iTerm2 inline images | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Sixel | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| Tabs | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Split panes | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Built-in multiplexer | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Drop-down panel** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Same session on every Space** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| | | | | | | |
+| **Knows which AI agent is running** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Bundled themes** | ✅ 602 | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Command palette** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Records the terminal to MP4/GIF** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Finder extension, both directions** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Scriptable over a socket and MCP** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Restores tabs, splits and folders** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Platforms | macOS | macOS · Linux | macOS | macOS · Linux · Windows | macOS · Linux | macOS · Linux · Windows · BSD |
 
-| | Notchshell | Black Box | Rio |
-|---|:---:|:---:|:---:|
-| GPU acceleration | ✅ | ❌ | ✅ |
-| True colour (24-bit) | ✅ | ✅ | ✅ |
-| Font ligatures | ✅ | ❌ | ✅ |
-| Unicode | ✅ | ✅ | ✅ |
-| Styled underlines | ✅ | ✅ | ✅ |
-| Synchronized output | ✅ | ❌ | ✅ |
-| Kitty keyboard protocol | ✅ | ❌ | ✅ |
-| OSC 52 clipboard | ✅ | ❌ | ✅ |
-| OSC 8 hyperlinks | ✅ | ✅ | ✅ |
-| Shell integration | ✅ | ❌ | ✅ |
-| Desktop notifications | ✅ | ✅ | ❌ |
-| Inline images | ✅ | ✅ | ✅ |
-| — Kitty graphics protocol | ✅ | ❌ | ❌ |
-| — iTerm2 inline images | ❌ | ❌ | ✅ |
-| — Sixel | ❌ | ✅ | ✅ |
-| Tabs | ✅ | ✅ | ✅ |
-| Split panes | ✅ | ❌ | ✅ |
-| Built-in multiplexer | ❌ | ❌ | ❌ |
-| **Drop-down mode** | ✅ | ❌ | ❌ |
-| Platforms | macOS | Linux · macOS · Windows | Linux · BSD |
-| | | | |
-| **Knows which AI agent is running** | ✅ | ❌ | ❌ |
-| **Bundled themes** | ✅ 602 | ❌ | ❌ |
-| **Command palette** | ✅ | ❌ | ❌ |
-| **Records the terminal to MP4/GIF** | ✅ | ❌ | ❌ |
-| **Finder extension, both directions** | ✅ | ❌ | ❌ |
-| **Scriptable over a socket and MCP** | ✅ | ❌ | ❌ |
-| **Restores tabs, splits and folders** | ✅ | ❌ | ❌ |
+The Notchshell and Ghostty columns are read from the pinned Ghostty source in
+`vendor/ghostty` and from this app's own code; the rest are each project's documented
+behaviour as of August 2026. For a wider field —
+[Terminal Trove](https://terminaltrove.com/compare/terminals/) tracks 44 terminals, of
+which 21 are GPU-accelerated, 15 do Sixel and 8 speak the Kitty graphics protocol.
 
-Sixel and iTerm2 inline images are Ghostty's calls, not this app's: it implements the
-Kitty graphics protocol instead, and [dropped Sixel from its
-roadmap](https://github.com/ghostty-org/ghostty/discussions/2496) in 2024. A built-in
-multiplexer means detach and re-attach, which none of the three do — tabs, splits and
-session restore cover the rest of what people reach for locally.
+Two honest gaps. Sixel is Ghostty's call rather than this app's — it implements the
+Kitty graphics protocol instead, having [dropped Sixel from its
+roadmap](https://github.com/ghostty-org/ghostty/discussions/2496) in 2024. The other is
+a built-in multiplexer, which means detach and re-attach: WezTerm has one, and tabs,
+splits and session restore cover the rest of what people reach for on one machine.
+
+iTerm2's inline images used to be a third gap and are not any more: Ghostty parses OSC
+1337 for the working directory but not for pictures, so this app adds the `File=`
+branch and hands the result to the Kitty graphics pipeline that was already there. It
+lives in `vendor/ghostty-patches` and covers PNG and JPEG.
+
+"Same session on every Space" is the one people notice second: the panel joins every
+Space, so the hotkey brings down the shell you were already in rather than a new window
+wherever you happen to be.
 
 ---
 
