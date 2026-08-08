@@ -11,6 +11,8 @@ final class PaneManager: ObservableObject {
             // this, focusing a pane sitting in another directory left the tab named
             // after the one you just left.
             guard focusedPaneID != oldValue else { return }
+            // The zoom follows focus, so which surface is on screen changes with it.
+            if isZoomed { applySurfaceVisibility() }
             let directory = instances[focusedPaneID]?.currentDirectory ?? ""
             if !directory.isEmpty { onFocusedDirectoryChange?(directory) }
         }
@@ -22,6 +24,9 @@ final class PaneManager: ObservableObject {
     var onFocusedDirectoryChange: ((String) -> Void)?
     /// Called when the last pane is closed.
     var onLastPaneClosed: (() -> Void)?
+    /// Called when any pane in this tab asks for attention. Any pane, not just the
+    /// focused one: an agent in a background split is exactly the case worth hearing.
+    var onAttention: ((_ title: String, _ body: String) -> Void)?
 
     /// The tab this pane tree belongs to, stamped into every shell's environment.
     ///
@@ -58,11 +63,41 @@ final class PaneManager: ObservableObject {
         instances[paneID]
     }
 
+    /// Whether the focused pane is temporarily filling the tab on its own.
+    ///
+    /// Deliberately a flag rather than a pane id: the zoom always follows focus, so
+    /// `⌘]` still cycles panes while zoomed instead of dead-ending on one of them.
+    @Published private(set) var isZoomed: Bool = false
+
+    /// Whether the panel itself is on screen. Combined with `isZoomed` to decide what
+    /// each surface is told — see `applySurfaceVisibility`.
+    private var panelVisible: Bool = true
+
+    /// Toggle zoom on the focused pane. A single pane has nothing to zoom out of.
+    func toggleZoom() {
+        guard rootPane.leafCount > 1 else {
+            if isZoomed { isZoomed = false; applySurfaceVisibility() }
+            return
+        }
+        isZoomed.toggle()
+        applySurfaceVisibility()
+    }
+
     /// Tell every pane in this tab whether it is on screen — splits included, since a
     /// hidden panel hides all of them at once.
     func setSurfacesVisible(_ visible: Bool) {
-        for instance in instances.values {
-            instance.backend.setVisible(visible)
+        panelVisible = visible
+        applySurfaceVisibility()
+    }
+
+    /// A zoomed-out pane leaves the view tree, and the lesson `setSurfacesVisible`
+    /// records applies exactly as much here: off screen is not off. Ghostty keeps
+    /// drawing on its own display link until told otherwise, so the panes hidden
+    /// behind a zoom are reported occluded rather than merely unmounted.
+    private func applySurfaceVisibility() {
+        for (paneID, instance) in instances {
+            let onScreen = panelVisible && (!isZoomed || paneID == focusedPaneID)
+            instance.backend.setVisible(onScreen)
         }
     }
 
@@ -77,9 +112,10 @@ final class PaneManager: ObservableObject {
     // MARK: - Split (native Ghostty surfaces)
 
     @discardableResult
-    func splitPane(id: String, axis: Axis, ratio: CGFloat = 0.5) -> Bool {
+    func splitPane(id: String, axis: Axis, ratio: CGFloat = 0.5,
+                   directory: String? = nil) -> Bool {
         guard let sourceBackend = rootPane.backend(for: id),
-              let newBackend = sourceBackend.createSplitBackend() else {
+              let newBackend = sourceBackend.createSplitBackend(directory: directory) else {
             os_log(.error, "Failed to create split surface")
             return false
         }
@@ -90,7 +126,12 @@ final class PaneManager: ObservableObject {
         setupCallbacks(for: newPaneID, instance: newInstance)
 
         rootPane = splitNode(rootPane, targetID: id, axis: axis, newBackend: newBackend, newPaneID: newPaneID, ratio: ratio)
+        // Splitting inside a zoom would show the new pane alone, which reads as the
+        // split having replaced the tab rather than divided it. Ghostty unzooms here
+        // for the same reason.
+        isZoomed = false
         focusedPaneID = newPaneID
+        applySurfaceVisibility()
         return true
     }
 
@@ -116,6 +157,9 @@ final class PaneManager: ObservableObject {
             if !rootPane.leafIDs.contains(focusedPaneID) {
                 focusedPaneID = rootPane.leafIDs.first!
             }
+            // Closing back down to one pane leaves nothing to be zoomed out of.
+            if rootPane.leafCount == 1 { isZoomed = false }
+            applySurfaceVisibility()
             return true
         }
         return true
@@ -211,6 +255,22 @@ final class PaneManager: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.equalizeSplits()
+            }
+        }
+
+        instance.onAttention = { [weak self] title, body in
+            Task { @MainActor in
+                self?.onAttention?(title, body)
+            }
+        }
+
+        instance.onToggleSplitZoom = { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                // Ghostty routes the request from whichever surface has focus; zoom
+                // that one rather than whatever was focused a moment ago.
+                self.focusedPaneID = paneID
+                self.toggleZoom()
             }
         }
     }

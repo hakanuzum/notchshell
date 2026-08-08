@@ -85,6 +85,9 @@ struct SettingsView: View {
     @AppStorage("restoreTabsOnLaunch") private var restoreTabsOnLaunch: Bool = true
     @AppStorage("disableAnimation") private var disableAnimation: Bool = false
     @AppStorage("copyOnSelect") private var copyOnSelect: Bool = true
+    @AppStorage("agentNotifications") private var agentNotifications: Bool = true
+    @AppStorage("agentNotificationSound") private var agentNotificationSound: Bool = true
+    @AppStorage("rememberAgentHistory") private var rememberAgentHistory: Bool = true
     @AppStorage("shellPath") private var shellPath: String = ""
 
     @State private var customShellPath: String = ""
@@ -167,6 +170,18 @@ struct SettingsView: View {
             Toggle("Restore tabs on launch", isOn: $restoreTabsOnLaunch)
             Toggle("Copy on select", isOn: $copyOnSelect)
             Toggle("Disable animation", isOn: $disableAnimation)
+            // A tab only interrupts you when you are not already reading it — see
+            // `TerminalNotifier`. The sound is separate because it is the half people
+            // turn off first.
+            Toggle("Agent notifications", isOn: $agentNotifications)
+            Toggle("Notification sound", isOn: $agentNotificationSound)
+                .disabled(!agentNotifications)
+            Toggle("Remember agent history", isOn: $rememberAgentHistory)
+            HStack {
+                Text("Agent history")
+                Spacer()
+                Button("Clear") { AgentHistoryStore.shared.clear() }
+            }
             Toggle("Check for updates automatically", isOn: Binding(
                 get: { SparkleUpdater.shared.automaticallyChecksForUpdates },
                 set: { SparkleUpdater.shared.automaticallyChecksForUpdates = $0 }
@@ -336,13 +351,33 @@ struct SettingsView: View {
 
     private var keyboard: some View {
         Section {
+            // The global hotkey is not an `AppAction` — it has to work when the panel is
+            // not there to have actions.
             KeyboardShortcuts.Recorder("Toggle Terminal", name: .toggleTerminal)
             KeyboardShortcuts.Recorder("Next Tab", name: .nextTab)
             KeyboardShortcuts.Recorder("Previous Tab", name: .previousTab)
+
+            // Generated from the registry, never typed out here. A hand-written list
+            // would be a second copy of the actions, and the whole point of the registry
+            // is that there is only one.
+            ForEach(AppAction.Group.allCases, id: \.self) { group in
+                let actions = windowController.actions
+                    .filter { $0.group == group && $0.isRebindable }
+                if !actions.isEmpty {
+                    Text(group.rawValue)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(actions) { action in
+                        if let name = action.shortcutName {
+                            KeyboardShortcuts.Recorder(action.title, name: name)
+                        }
+                    }
+                }
+            }
         } header: {
             Text("Keyboard")
         } footer: {
-            Text("Ctrl+Tab and ⌘1-9 are always available.")
+            Text("⌘P opens the command palette. ⌃⇥, ⌘1–9 and ⌘/ are fixed.")
         }
     }
 

@@ -46,6 +46,20 @@ enum AppIdentity {
     /// `<configHome>/ghostty`, which belongs to the user and is never written to.
     static var configDirectory: String { "\(configHome)/\(slug)" }
 
+    /// Base for per-user *data* — things the app recorded rather than things you set.
+    /// Redirectable through `XDG_DATA_HOME` for the same reason `configHome` honours
+    /// `XDG_CONFIG_HOME`: it is the only way tests can write without landing in the
+    /// developer's real home.
+    static var dataHome: String {
+        if let xdg = ProcessInfo.processInfo.environment["XDG_DATA_HOME"], !xdg.isEmpty {
+            return xdg
+        }
+        return NSString(string: "~/.local/share").expandingTildeInPath
+    }
+
+    /// Directory this app owns for what it has recorded.
+    static var dataDirectory: String { "\(dataHome)/\(slug)" }
+
     /// Environment variable that opts tests into real Ghostty initialization.
     static let testGhosttyEnvVar = "NOTCHSHELL_TEST_GHOSTTY"
 

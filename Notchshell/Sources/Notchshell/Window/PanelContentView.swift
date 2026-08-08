@@ -159,6 +159,33 @@ struct PanelContentView: View {
                 y: 6
             )
             .opacity(isVisible ? 1 : 0)
+            // Over the terminal rather than in the tab bar: the palette is a place you
+            // go, and it wants the height. Anchored to the top so it does not move as
+            // the list under it grows and shrinks with what you type.
+            .overlay(alignment: .top) {
+                if windowController.showCommandPalette && isVisible {
+                    CommandPalette(windowController: windowController) {
+                        windowController.showCommandPalette = false
+                    }
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
+                    )
+                    .shadow(color: .black.opacity(0.35), radius: 22, y: 10)
+                    .padding(.top, 40)
+                    // The panel's chrome setting, not the system appearance. They agree
+                    // on Auto, but Light and Dark *force* the chrome, and a palette
+                    // following macOS instead would come up light on a panel the user
+                    // set to dark. The tab bar and Settings resolve it the same way.
+                    //
+                    // Last, so it wraps the background too. Applied before it, the text
+                    // turned dark-mode white while `.regularMaterial` kept resolving in
+                    // the outer environment and stayed light — white on white.
+                    .environment(\.colorScheme,
+                                 PanelChrome.colorScheme(style: windowController.chromeStyle))
+                }
+            }
     }
 
     // MARK: - Resize

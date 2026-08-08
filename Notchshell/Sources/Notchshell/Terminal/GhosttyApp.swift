@@ -286,7 +286,9 @@ final class GhosttyApp: @unchecked Sendable {
             reloadConfig()
             return true
         case GHOSTTY_ACTION_RING_BELL:
-            return true // Suppress terminal bell
+            // App-level, so no surface and therefore no tab to point at. The
+            // surface-targeted bell is the one that notifies — see `GhosttyBackend`.
+            return true
         default:
             return false
         }

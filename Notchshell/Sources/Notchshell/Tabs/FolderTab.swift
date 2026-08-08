@@ -83,6 +83,13 @@ struct FolderTab: View {
     let kind: Tab.TabKind
     /// The agent CLI running in this tab, if any.
     var agent: AgentKind?
+    /// Something in this tab asked for attention while you were looking elsewhere.
+    var wantsAttention: Bool = false
+    /// Agents that have run in this tab's directory before. Only consulted when nothing
+    /// is running now — `agent` owns the slot when it is set.
+    var dormantAgents: [AgentKind] = []
+    /// Run a resume command in this tab.
+    var onResume: (String) -> Void = { _ in }
     let isActive: Bool
     /// True when the name has been renamed by hand, so the editor opens with it rather
     /// than blank.
@@ -103,6 +110,10 @@ struct FolderTab: View {
     let height: CGFloat
 
     @State private var isHovered = false
+    @State private var showingResume = false
+    /// When the last tap landed, so a double-click can be recognised without asking
+    /// SwiftUI to delay the single one. See the tap gesture below.
+    @State private var lastTapAt: Date? = nil
     @State private var editText = ""
     @FocusState private var fieldFocused: Bool
 
@@ -119,6 +130,28 @@ struct FolderTab: View {
         FolderTabShape(slant: Self.slant)
     }
 
+    /// The unread mark. Ringed in the tab's own fill so it stays legible sitting on top
+    /// of an agent badge, which is the usual case.
+    ///
+    /// Amber rather than the system accent, and rather than red. The accent is whatever
+    /// the user picked in System Settings — on a machine set to graphite this mark came
+    /// out a grey smudge quieter than the close button beside it, which inverts the
+    /// hierarchy: the one thing you must not miss read as less urgent than a routine
+    /// control. Red is spoken for by that close button. Amber is neither, and carries
+    /// "waiting on you" on its own.
+    private static let attentionColor = Color(red: 0.98, green: 0.65, blue: 0.13)
+
+    @ViewBuilder private var attentionDot: some View {
+        if wantsAttention {
+            Circle()
+                .fill(Self.attentionColor)
+                .frame(width: 6, height: 6)
+                .overlay(Circle().stroke(isActive ? palette.activeTop : palette.inactiveTop,
+                                         lineWidth: 1))
+                .offset(x: 2.5, y: -2.5)
+        }
+    }
+
     var body: some View {
         // 6, not 4: the name needs to sit clear of the mark on its left and the close
         // dot on its right, or the three read as one run of glyphs.
@@ -130,6 +163,38 @@ struct FolderTab: View {
             } else if let agent {
                 // Matches TrafficLightClose, so the two ends of the tab weigh the same.
                 AgentBadge(agent: agent, size: TrafficLightClose.diameter)
+                    .overlay(alignment: .topTrailing) { attentionDot }
+            } else if let dormant = dormantAgents.first {
+                // The same slot, faded, and clickable — the tab remembers what worked
+                // here even though nothing is running.
+                //
+                // A `Button` here was close to unclickable, and neither reason was the
+                // button's fault. The tab carries `onTapGesture(count: 2)` for renaming,
+                // so SwiftUI holds every single tap back to see whether a second one
+                // follows, and a child button has to win that wait; and a 12pt circle is
+                // a small thing to hit twice. So: a high-priority tap that does not
+                // queue behind the parent, over a hit area padded out to a comfortable
+                // target. The padding is negative-margined back out so the tab does not
+                // grow around it.
+                AgentBadge(agent: dormant, size: TrafficLightClose.diameter,
+                           isDormant: true)
+                    .overlay(alignment: .topTrailing) { attentionDot }
+                    .padding(6)
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(TapGesture().onEnded { showingResume = true })
+                    .padding(-6)
+                    .popover(isPresented: $showingResume, arrowEdge: .bottom) {
+                        AgentResumePopover(agents: dormantAgents) { command in
+                            showingResume = false
+                            onResume(command)
+                        }
+                    }
+            } else if wantsAttention {
+                // No badge to hang it on, so the dot takes the slot itself. The slot is
+                // reserved either way, so nothing shifts when the mark clears.
+                attentionDot
+                    .frame(width: TrafficLightClose.diameter,
+                           height: TrafficLightClose.diameter)
             }
             if isEditing.wrappedValue {
                 TextField("Tab name", text: $editText, onCommit: commitRename)
@@ -173,13 +238,30 @@ struct FolderTab: View {
                 .stroke(palette.border, lineWidth: 0.75)
         )
         .contentShape(shape)
-        // A single tap selects; a double tap renames. `count: 2` has to be declared
-        // first or the single-tap gesture swallows both halves of the double.
-        .onTapGesture(count: 2) {
-            guard kind == .terminal else { return }
-            isEditing.wrappedValue = true
+        // A single tap selects; a double tap renames — but *not* through
+        // `onTapGesture(count: 2)`. Declaring a double-tap makes SwiftUI hold every
+        // single tap until the double-tap window closes, so switching tabs answered a
+        // system double-click interval late, every time. It read as the whole tab bar
+        // being sluggish, and it made anything nested inside a tab — the resume badge —
+        // feel like it needed several tries.
+        //
+        // So the tap fires immediately and the double is recognised from the clock
+        // instead. Selecting a tab twice in quick succession is harmless, which is what
+        // makes this safe: the first click of a double has already done its work by the
+        // time the second arrives.
+        .onTapGesture {
+            let now = Date()
+            let isDouble = lastTapAt.map {
+                now.timeIntervalSince($0) < NSEvent.doubleClickInterval
+            } ?? false
+            lastTapAt = isDouble ? nil : now
+
+            if isDouble && kind == .terminal {
+                isEditing.wrappedValue = true
+            } else {
+                onSelect()
+            }
         }
-        .onTapGesture(perform: onSelect)
         .onHover { hovering in
             isHovered = hovering
             onHover(hovering)

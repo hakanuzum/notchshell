@@ -79,6 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.servicesProvider = self
         NSUpdateDynamicServices()
 
+        // Only claims the delegate slot; the permission prompt waits until there is
+        // actually something to notify about.
+        TerminalNotifier.shared.start()
+
         setupStatusItem()
         setupHotkey()
         let cs = ControlServer(windowController: windowController)

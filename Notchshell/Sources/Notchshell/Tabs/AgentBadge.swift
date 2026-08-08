@@ -13,6 +13,9 @@ import SwiftUI
 struct AgentBadge: View {
     let agent: AgentKind
     var size: CGFloat = 13
+    /// Nothing is running; this tool merely worked in the tab's directory before. Drawn
+    /// faded, so a badge you can act on never looks the same as one reporting a fact.
+    var isDormant: Bool = false
 
     var body: some View {
         Group {
@@ -31,7 +34,8 @@ struct AgentBadge: View {
                     )
             }
         }
-        .help(agent.label)
+        .opacity(isDormant ? 0.45 : 1)
+        .help(isDormant ? "\(agent.label) ran here — click to resume" : agent.label)
         .accessibilityLabel(agent.label)
     }
 }

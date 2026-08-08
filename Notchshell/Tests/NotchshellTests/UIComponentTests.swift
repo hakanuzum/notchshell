@@ -1122,31 +1122,39 @@ struct TabReorderingTests {
 @Suite(.serialized)
 struct TabStatePersistenceTests {
 
-    private static let tabDirsKey = "savedTabDirectories"
+    /// The old directories-only format. Still read once, so an upgrade keeps its tabs.
+    private static let legacyTabDirsKey = "savedTabDirectories"
+    private static let savedTabsKey = "savedTabs"
     private static let activeIndexKey = "savedActiveTabIndex"
     private static let restoreKey = "restoreTabsOnLaunch"
 
     /// Clean up all UserDefaults keys used by persistence tests.
     private func cleanupDefaults() {
-        UserDefaults.standard.removeObject(forKey: Self.tabDirsKey)
+        UserDefaults.standard.removeObject(forKey: Self.legacyTabDirsKey)
+        UserDefaults.standard.removeObject(forKey: Self.savedTabsKey)
         UserDefaults.standard.removeObject(forKey: Self.activeIndexKey)
         UserDefaults.standard.removeObject(forKey: Self.restoreKey)
     }
 
+    private func readSaved() -> [SavedTab]? {
+        guard let data = UserDefaults.standard.data(forKey: Self.savedTabsKey) else { return nil }
+        return try? JSONDecoder().decode([SavedTab].self, from: data)
+    }
+
     // MARK: - saveTabState
 
-    @Test func saveTabState_writesDirectoriesToUserDefaults() {
+    @Test func saveTabState_writesTabsToUserDefaults() {
         cleanupDefaults()
         let tm = TabManager()
         tm.addTab()
         // Both tabs are fresh (no shell output yet), so directories will be "~"
         tm.saveTabState()
 
-        let dirs = UserDefaults.standard.stringArray(forKey: Self.tabDirsKey)
-        #expect(dirs != nil)
-        #expect(dirs!.count == 2)
-        // Fresh tabs have empty directory → saveTabState maps empty to "~"
-        #expect(dirs!.allSatisfy { $0 == "~" })
+        let saved = readSaved()
+        #expect(saved != nil)
+        #expect(saved!.count == 2)
+        // Fresh tabs have empty directory → the snapshot maps empty to "~"
+        #expect(saved!.allSatisfy { $0.directory == "~" })
         cleanupDefaults()
     }
 
@@ -1168,12 +1176,12 @@ struct TabStatePersistenceTests {
         let tm = TabManager()
         tm.openSettings()
         tm.openHelp()
-        // 1 terminal + settings + help = 3 tabs, but only terminal dirs saved
+        // 1 terminal + settings + help = 3 tabs, but only terminal tabs saved
         tm.saveTabState()
 
-        let dirs = UserDefaults.standard.stringArray(forKey: Self.tabDirsKey)
-        #expect(dirs != nil)
-        #expect(dirs!.count == 1) // only the terminal tab
+        let saved = readSaved()
+        #expect(saved != nil)
+        #expect(saved!.count == 1) // only the terminal tab
         cleanupDefaults()
     }
 
@@ -1181,13 +1189,63 @@ struct TabStatePersistenceTests {
         cleanupDefaults()
         let tm = TabManager()
         tm.saveTabState()
-        let firstDirs = UserDefaults.standard.stringArray(forKey: Self.tabDirsKey)
-        #expect(firstDirs?.count == 1)
+        #expect(readSaved()?.count == 1)
 
         tm.addTab()
         tm.saveTabState()
-        let secondDirs = UserDefaults.standard.stringArray(forKey: Self.tabDirsKey)
-        #expect(secondDirs?.count == 2)
+        #expect(readSaved()?.count == 2)
+        cleanupDefaults()
+    }
+
+    /// A name you typed is part of the tab, so it has to come back with it. The
+    /// directory-derived name deliberately is not saved — it is rederived on restore.
+    @Test func saveTabState_roundTripsCustomTitle() {
+        cleanupDefaults()
+        let tm = TabManager()
+        tm.renameTab(id: tm.tabs[0].id, name: "deploy")
+        tm.saveTabState()
+
+        #expect(readSaved()?.first?.customTitle == "deploy")
+
+        UserDefaults.standard.set(true, forKey: Self.restoreKey)
+        let restored = TabManager()
+        #expect(restored.tabs.first?.customTitle == "deploy")
+        #expect(restored.tabs.first?.displayTitle == "deploy")
+        cleanupDefaults()
+    }
+
+    /// The shape survives encoding on its own terms, independent of whether this
+    /// environment can actually create split surfaces.
+    @Test func savedPane_roundTripsSplitShape() throws {
+        let layout = SavedPane.split(
+            vertical: true,
+            first: .leaf(directory: "/tmp"),
+            second: .split(
+                vertical: false,
+                first: .leaf(directory: "/usr"),
+                second: .leaf(directory: "/var"),
+                ratio: 0.25
+            ),
+            ratio: 0.75
+        )
+        let data = try JSONEncoder().encode(SavedTab(customTitle: "x", layout: layout))
+        let decoded = try JSONDecoder().decode(SavedTab.self, from: data)
+
+        #expect(decoded.layout == layout)
+        #expect(decoded.layout.leafCount == 3)
+        // The first pane stands in for everything on the `first` side, so restoring
+        // has to open it in that side's directory.
+        #expect(decoded.directory == "/tmp")
+    }
+
+    /// Upgrading from the directories-only format keeps the tabs you had open.
+    @Test func restore_readsLegacyDirectoriesFormat() {
+        cleanupDefaults()
+        UserDefaults.standard.set(["~", "~"], forKey: Self.legacyTabDirsKey)
+        UserDefaults.standard.set(true, forKey: Self.restoreKey)
+
+        let tm = TabManager()
+        #expect(tm.tabs.count == 2)
         cleanupDefaults()
     }
 
@@ -1205,7 +1263,7 @@ struct TabStatePersistenceTests {
     @Test func restore_restoreDisabled_createsDefaultTab() {
         cleanupDefaults()
         // Save some state but disable restore
-        UserDefaults.standard.set(["~", "/tmp"], forKey: Self.tabDirsKey)
+        UserDefaults.standard.set(["~", "/tmp"], forKey: Self.legacyTabDirsKey)
         UserDefaults.standard.set(1, forKey: Self.activeIndexKey)
         UserDefaults.standard.set(false, forKey: Self.restoreKey)
 
@@ -1217,7 +1275,7 @@ struct TabStatePersistenceTests {
 
     @Test func restore_restoreEnabled_restoresSavedTabs() {
         cleanupDefaults()
-        UserDefaults.standard.set(["~", "~", "~"], forKey: Self.tabDirsKey)
+        UserDefaults.standard.set(["~", "~", "~"], forKey: Self.legacyTabDirsKey)
         UserDefaults.standard.set(1, forKey: Self.activeIndexKey)
         UserDefaults.standard.set(true, forKey: Self.restoreKey)
 
@@ -1229,7 +1287,7 @@ struct TabStatePersistenceTests {
 
     @Test func restore_restoreEnabled_emptyDirs_createsDefaultTab() {
         cleanupDefaults()
-        UserDefaults.standard.set([String](), forKey: Self.tabDirsKey)
+        UserDefaults.standard.set([String](), forKey: Self.legacyTabDirsKey)
         UserDefaults.standard.set(true, forKey: Self.restoreKey)
 
         let tm = TabManager()
@@ -1240,7 +1298,7 @@ struct TabStatePersistenceTests {
 
     @Test func restore_savedIndexOutOfBounds_clampedToLast() {
         cleanupDefaults()
-        UserDefaults.standard.set(["~", "~"], forKey: Self.tabDirsKey)
+        UserDefaults.standard.set(["~", "~"], forKey: Self.legacyTabDirsKey)
         UserDefaults.standard.set(99, forKey: Self.activeIndexKey)
         UserDefaults.standard.set(true, forKey: Self.restoreKey)
 

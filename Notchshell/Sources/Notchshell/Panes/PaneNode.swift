@@ -38,6 +38,16 @@ indirect enum PaneNode: Identifiable {
         }
     }
 
+    /// Find the leaf node itself, not just its backend.
+    func leafNode(for paneID: String) -> PaneNode? {
+        switch self {
+        case .leaf(let id, _):
+            return id == paneID ? self : nil
+        case .split(_, _, let first, let second, _):
+            return first.leafNode(for: paneID) ?? second.leafNode(for: paneID)
+        }
+    }
+
     /// Total number of leaf panes.
     var leafCount: Int {
         switch self {

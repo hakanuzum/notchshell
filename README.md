@@ -86,8 +86,10 @@ bar, not what is behind the panel.
 | Go to tab 1–9 | `⌘ 1` – `⌘ 9` |
 | Split horizontal · vertical | `⌘ D` · `⌘ ⇧ D` |
 | Next / previous pane | `⌘ ]` · `⌘ [` |
+| Zoom pane | `⌘ ⇧ Enter` |
 | Copy · paste | `⌘ C` · `⌘ V` |
 | Clear screen · find | `⌘ K` · `⌘ F` |
+| Command palette | `⌘ P` |
 | Settings · Help | `⌘ ,` · `⌘ /` |
 
 Unpinned, the panel hides when it loses focus. Pin it to keep it down.

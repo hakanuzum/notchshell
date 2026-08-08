@@ -64,6 +64,12 @@ struct TabBarView: View {
                             title: shortTitle(tab.displayTitle),
                             kind: tab.kind,
                             agent: tabManager.agents[tab.id],
+                            wantsAttention: tabManager.attentionTabIDs.contains(tab.id),
+                            dormantAgents: tabManager.dormantAgents[tab.id] ?? [],
+                            onResume: { command in
+                                tabManager.selectTab(at: index)
+                                tabManager.resumeAgent(tabID: tab.id, command: command)
+                            },
                             isActive: index == tabManager.activeTabIndex,
                             hasCustomTitle: tab.customTitle != nil,
                             isEditing: Binding(

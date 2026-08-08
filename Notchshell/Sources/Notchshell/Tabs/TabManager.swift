@@ -70,8 +70,16 @@ final class TabManager: ObservableObject {
     /// panel is on screen. Empty is the normal state; a tab without an entry shows
     /// no badge.
     @Published var agents: [String: AgentKind] = [:]
+    /// Tabs that asked for attention while you were looking elsewhere. Looking at one
+    /// is the answer, so selecting a tab clears it.
+    @Published private(set) var attentionTabIDs: Set<String> = []
 
     private let agentMonitor = AgentMonitor()
+
+    /// Whether the panel is on screen. An ask that arrives while you are already
+    /// reading the tab is not worth interrupting you over, and this is half of
+    /// knowing that — `activeTabIndex` is the other half.
+    private var panelVisible: Bool = false
 
     /// Stack of directories from recently closed tabs (for ⌘⇧T reopen)
     private var closedTabDirectories: [String] = []
@@ -99,7 +107,10 @@ final class TabManager: ObservableObject {
             pm.splitFocusedPane(axis: axis == "horizontal" ? .horizontal : .vertical)
         }
         agentMonitor.onChange = { [weak self] agents in
-            self?.agents = agents
+            guard let self else { return }
+            self.agents = agents
+            self.recordAgentsSeen(agents)
+            self.refreshDormantAgents()
         }
     }
 
@@ -110,8 +121,11 @@ final class TabManager: ObservableObject {
         objectWillChange.send()
     }
 
-    func addTab(in directory: String? = nil) {
-        let tab = Tab(directory: directory)
+    func addTab(in directory: String? = nil,
+                layout: SavedPane? = nil,
+                customTitle: String? = nil) {
+        var tab = Tab(directory: directory)
+        tab.customTitle = customTitle
         let tabID = tab.id
 
         // Wire PaneManager callbacks. These look the tab up by id on every call rather
@@ -129,12 +143,23 @@ final class TabManager: ObservableObject {
         tab.paneManager?.onFocusedDirectoryChange = { [weak self] directory in
             guard let self, let index = self.tabs.firstIndex(where: { $0.id == tabID }) else { return }
             self.tabs[index].directoryTitle = Tab.name(forDirectory: directory)
+            // `cd` into a project you have used an agent in should say so straight away,
+            // not on the agent monitor's next tick.
+            self.refreshDormantAgents()
         }
 
         tab.paneManager?.onLastPaneClosed = { [weak self] in
             guard let self else { return }
             self.closeTab(id: tabID)
         }
+
+        tab.paneManager?.onAttention = { [weak self] title, body in
+            self?.handleAttention(tabID: tabID, title: title, body: body)
+        }
+
+        // After the callbacks are wired, so the rebuilt panes report through them, and
+        // before the tab is on screen, so the shape is already right when it appears.
+        if let layout { tab.paneManager?.restoreLayout(layout) }
 
         tabs.append(tab)
         activeTabIndex = tabs.count - 1
@@ -156,6 +181,8 @@ final class TabManager: ObservableObject {
         }
 
         tabs.remove(at: index)
+        attentionTabIDs.remove(id)
+        TerminalNotifier.shared.clear(tabID: id)
 
         if tabs.isEmpty {
             addTab()
@@ -195,6 +222,11 @@ final class TabManager: ObservableObject {
     func moveFocusInActiveTab(_ direction: PaneManager.NavigationDirection) {
         guard let tab = activeTab, let pm = tab.paneManager else { return }
         pm.moveFocus(direction)
+    }
+
+    func toggleZoomInActiveTab() {
+        guard let tab = activeTab, tab.kind == .terminal, let pm = tab.paneManager else { return }
+        pm.toggleZoom()
     }
 
     // MARK: - Special Tabs
@@ -272,8 +304,83 @@ final class TabManager: ObservableObject {
         focusTerminalInActiveTab()
     }
 
+    // MARK: - Agent history
+
+    /// Tab id → agents that have run in that tab's directory before but are not running
+    /// in it now. This is what turns the badge slot from a live indicator into a way
+    /// back: a directory you have used an agent in says so when you return to it.
+    @Published private(set) var dormantAgents: [String: [AgentKind]] = [:]
+
+    private func recordAgentsSeen(_ agents: [String: AgentKind]) {
+        for (tabID, agent) in agents {
+            guard let tab = tabs.first(where: { $0.id == tabID }),
+                  let directory = tab.paneManager?.currentDirectory,
+                  !directory.isEmpty else { continue }
+            AgentHistoryStore.shared.record(agent: agent, in: directory)
+        }
+    }
+
+    /// A tab shows a dormant badge only when nothing is running in it — a live agent
+    /// already owns that slot, and it says more.
+    func refreshDormantAgents() {
+        var next: [String: [AgentKind]] = [:]
+        for tab in tabs where tab.kind == .terminal {
+            guard agents[tab.id] == nil,
+                  let directory = tab.paneManager?.currentDirectory,
+                  !directory.isEmpty else { continue }
+            let past = AgentHistoryStore.shared.agents(in: directory).compactMap(\.kind)
+            if !past.isEmpty { next[tab.id] = past }
+        }
+        if next != dormantAgents { dormantAgents = next }
+    }
+
+    /// Run an agent's own resume command in the tab's focused pane.
+    ///
+    /// Typed in and entered, exactly as you would have. Notchshell does not know what
+    /// sessions exist — the tool takes it from here.
+    func resumeAgent(tabID: String, command: String) {
+        guard let tab = tabs.first(where: { $0.id == tabID }),
+              let backend = tab.paneManager?.focusedBackend else { return }
+        backend.send(text: command + "\n")
+    }
+
+    // MARK: - Attention
+
+    /// A pane asked for attention. Whether that is worth interrupting you over depends
+    /// entirely on where you are looking.
+    private func handleAttention(tabID: String, title: String, body: String) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        // Already watching it. The ask has been answered by the time it arrived.
+        if panelVisible && index == activeTabIndex { return }
+
+        attentionTabIDs.insert(tabID)
+
+        let tabName = tabs[index].displayTitle
+        // A bell carries no text of its own, so the tab has to speak for it.
+        TerminalNotifier.shared.notify(
+            title: title.isEmpty ? AppIdentity.displayName : title,
+            subtitle: tabName,
+            body: body.isEmpty ? "\(tabName) wants your attention" : body,
+            tabID: tabID
+        )
+    }
+
+    /// Looking at a tab clears its mark, in the tab bar and in Notification Centre.
+    private func clearAttentionForActiveTab() {
+        guard let tab = activeTab, attentionTabIDs.contains(tab.id) else { return }
+        attentionTabIDs.remove(tab.id)
+        TerminalNotifier.shared.clear(tabID: tab.id)
+    }
+
+    /// Select the tab a clicked notification came from, dropping the panel if needed.
+    func revealTab(id: String) {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        selectTab(at: index)
+    }
+
     /// Make the focused pane's terminal view the first responder so it receives keyboard input.
     func focusTerminalInActiveTab() {
+        clearAttentionForActiveTab()
         guard let tab = activeTab, let pm = tab.paneManager,
               let backend = pm.focusedBackend else { return }
         let termView = backend.focusableView
@@ -289,9 +396,12 @@ final class TabManager: ObservableObject {
     /// background tabs too would be a further win, but it belongs to tab selection
     /// rather than to the panel.
     func setSurfacesVisible(_ visible: Bool) {
+        panelVisible = visible
         for tab in tabs {
             tab.paneManager?.setSurfacesVisible(visible)
         }
+        // Dropping the panel onto a tab that was waiting for you counts as reading it.
+        if visible { clearAttentionForActiveTab() }
         // The agent scan rides the same signal for the same reason: a panel that is
         // down is meant to cost nothing.
         agentMonitor.setActive(visible)
@@ -299,37 +409,61 @@ final class TabManager: ObservableObject {
 
     // MARK: - Tab State Persistence
 
-    private static let savedTabsKey = "savedTabDirectories"
+    /// Directories only. Superseded by `savedTabsKey`, still read once so an upgrade
+    /// does not lose the tabs you had open.
+    private static let legacyTabsKey = "savedTabDirectories"
+    private static let savedTabsKey = "savedTabs"
     private static let savedActiveIndexKey = "savedActiveTabIndex"
 
-    /// Save current tab working directories to UserDefaults.
+    /// Save the tabs as they stand: each one's split shape, ratios, per-pane
+    /// directories, and any name you typed.
     func saveTabState() {
-        let dirs = tabs.compactMap { tab -> String? in
-            guard tab.kind == .terminal else { return nil }
-            let dir = tab.paneManager?.currentDirectory ?? ""
-            return dir.isEmpty ? "~" : dir
+        let saved = tabs.compactMap { tab -> SavedTab? in
+            guard tab.kind == .terminal, let pm = tab.paneManager else { return nil }
+            return SavedTab(customTitle: tab.customTitle, layout: pm.layoutSnapshot())
         }
-        UserDefaults.standard.set(dirs, forKey: Self.savedTabsKey)
+        if let data = try? JSONEncoder().encode(saved) {
+            UserDefaults.standard.set(data, forKey: Self.savedTabsKey)
+        }
         UserDefaults.standard.set(activeTabIndex, forKey: Self.savedActiveIndexKey)
     }
 
     /// Restore tabs from saved state or create a default tab.
     private func restoreTabsOrDefault() {
-        guard UserDefaults.standard.bool(forKey: "restoreTabsOnLaunch"),
-              let dirs = UserDefaults.standard.stringArray(forKey: Self.savedTabsKey),
-              !dirs.isEmpty else {
+        guard UserDefaults.standard.bool(forKey: "restoreTabsOnLaunch") else {
             addTab()
             return
         }
 
-        for dir in dirs {
-            let resolved = dir == "~" ? nil : dir
-            addTab(in: resolved)
+        let saved = Self.readSavedTabs()
+        guard !saved.isEmpty else {
+            addTab()
+            return
+        }
+
+        for tab in saved {
+            let directory = tab.directory
+            addTab(
+                in: directory == "~" ? nil : directory,
+                layout: tab.layout.leafCount > 1 ? tab.layout : nil,
+                customTitle: tab.customTitle
+            )
         }
 
         let savedIndex = UserDefaults.standard.integer(forKey: Self.savedActiveIndexKey)
         if savedIndex >= 0 && savedIndex < tabs.count {
             activeTabIndex = savedIndex
         }
+    }
+
+    private static func readSavedTabs() -> [SavedTab] {
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: savedTabsKey),
+           let decoded = try? JSONDecoder().decode([SavedTab].self, from: data) {
+            return decoded
+        }
+        // Upgrade path: the old format knew only where each tab was.
+        guard let dirs = defaults.stringArray(forKey: legacyTabsKey) else { return [] }
+        return dirs.map { SavedTab(customTitle: nil, layout: .leaf(directory: $0)) }
     }
 }

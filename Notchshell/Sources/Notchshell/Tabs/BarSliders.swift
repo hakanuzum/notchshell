@@ -144,11 +144,12 @@ struct TrafficLightClose: View {
                     .fill(isTabHovered || isTabActive ? Self.liveRed : Self.dormant)
                 Circle()
                     .strokeBorder(Color.black.opacity(0.16), lineWidth: 0.5)
-                if isTabHovered {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 7, weight: .heavy))
-                        .foregroundColor(Color.black.opacity(0.55))
-                }
+                // Always drawn, not only on hover. Hiding it made the dot ambiguous —
+                // a coloured circle on a tab could be a status light as easily as a
+                // control, and you had to hover to find out which.
+                Image(systemName: "xmark")
+                    .font(.system(size: 7, weight: .heavy))
+                    .foregroundColor(Color.black.opacity(isTabHovered ? 0.7 : 0.5))
             }
             .frame(width: Self.diameter, height: Self.diameter)
             .contentShape(Circle())

@@ -87,6 +87,10 @@ final class TerminalInstance: NSObject, TerminalBackendDelegate {
     var onProcessTerminated: (() -> Void)?
     var onResizeSplit: ((CGFloat) -> Void)?
     var onEqualizeSplits: (() -> Void)?
+    var onToggleSplitZoom: (() -> Void)?
+    /// A program in this pane asking for attention. `title` and `body` are empty for a
+    /// bell, which carries no text of its own.
+    var onAttention: ((_ title: String, _ body: String) -> Void)?
     private(set) var currentTitle: String = "zsh"
     private(set) var currentDirectory: String = ""
     private var isTerminated = false
@@ -159,5 +163,17 @@ final class TerminalInstance: NSObject, TerminalBackendDelegate {
 
     func terminalRequestedEqualizeSplits() {
         onEqualizeSplits?()
+    }
+
+    func terminalRequestedToggleSplitZoom() {
+        onToggleSplitZoom?()
+    }
+
+    func terminalRequestedNotification(title: String, body: String) {
+        onAttention?(title, body)
+    }
+
+    func terminalRangBell() {
+        onAttention?("", "")
     }
 }

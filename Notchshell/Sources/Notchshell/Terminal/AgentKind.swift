@@ -89,6 +89,40 @@ enum AgentKind: String, CaseIterable, Sendable {
         "ollama": .ollama,
     ]
 
+    /// How to pick a past session back up, in each tool's own words.
+    ///
+    /// Verified against `--help` on this machine for claude, codex, grok and copilot;
+    /// from each project's documentation for the rest. Deliberately shallow: Notchshell
+    /// runs the command and the tool shows its own session list. Reading an agent's
+    /// session files to build a richer list would bind this app to a private format
+    /// that changes without notice — the same reason it never writes anyone's config.
+    ///
+    /// `goose` and `droid` are absent on purpose. Both can resume, but only given a
+    /// session id, and an id is exactly what a record this thin does not keep.
+    /// `crush` resumes only from inside its own UI, and `ollama` has no sessions.
+    struct ResumeCommands {
+        /// Straight back into the most recent session here.
+        let cont: String
+        /// The tool's own session picker, where it has one.
+        let picker: String?
+    }
+
+    var resume: ResumeCommands? {
+        switch self {
+        case .claude:   return .init(cont: "claude --continue", picker: "claude --resume")
+        case .codex:    return .init(cont: "codex resume --last", picker: "codex resume")
+        case .grok:     return .init(cont: "grok --continue", picker: "grok --resume")
+        case .qwen:     return .init(cont: "qwen --continue", picker: "qwen --resume")
+        case .cursor:   return .init(cont: "cursor-agent --continue", picker: "cursor-agent resume")
+        case .copilot:  return .init(cont: "copilot --continue", picker: nil)
+        case .gemini:   return .init(cont: "gemini --resume", picker: nil)
+        case .opencode: return .init(cont: "opencode --continue", picker: nil)
+        case .amp:      return .init(cont: "amp threads continue", picker: nil)
+        case .aider:    return .init(cont: "aider --restore-chat-history", picker: nil)
+        case .goose, .droid, .crush, .ollama: return nil
+        }
+    }
+
     /// Match one executable name. Strips a `.js`/`.py` suffix, since an npm bin link
     /// is sometimes the script itself rather than a wrapper.
     static func matching(executableName name: String) -> AgentKind? {

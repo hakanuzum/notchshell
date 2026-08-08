@@ -48,11 +48,13 @@ struct HelpView: View {
                         shortcutRow("Split horizontal", "⌘ D")
                         shortcutRow("Split vertical", "⌘ ⇧ D")
                         shortcutRow("Next / Previous pane", "⌘ ]  /  ⌘ [")
+                        shortcutRow("Zoom pane", "⌘ ⇧ Enter")
                         shortcutRow("Close pane", "⌘ W")
                     }
 
                     helpSection("Editing") {
                         shortcutRow("Copy / Paste", "⌘ C  /  ⌘ V")
+                        shortcutRow("Command palette", "⌘ P")
                         shortcutRow("Clear screen", "⌘ K")
                         shortcutRow("Find", "⌘ F")
                     }

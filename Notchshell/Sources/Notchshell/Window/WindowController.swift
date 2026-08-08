@@ -21,6 +21,9 @@ final class WindowController: ObservableObject {
     /// Settings used to open as a full tab; it is a side panel now, so the terminal
     /// stays visible beside it.
     @Published var showSettingsSidebar: Bool = false
+    /// Whether the command palette is up. Owned here rather than by the tab bar so
+    /// ⌘P can reach it from the key monitor.
+    @Published var showCommandPalette: Bool = false
     @Published var displayID: Int = 0
     /// Full menu-bar width by default (Unclutter shelf).
     @Published var widthPercent: Int = 100
@@ -40,6 +43,7 @@ final class WindowController: ObservableObject {
     private var screenObserver: Any?
     private var spaceObserver: Any?
     private var terminalClickObserver: Any?
+    private var notificationClickObserver: Any?
     private var keyMonitor: Any?
     private var clickMonitor: Any?
     private var middleClickMonitor: Any?
@@ -167,6 +171,9 @@ final class WindowController: ObservableObject {
             NSWorkspace.shared.notificationCenter.removeObserver(obs)
         }
         if let obs = terminalClickObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        if let obs = notificationClickObserver {
             NotificationCenter.default.removeObserver(obs)
         }
         if let monitor = keyMonitor {
@@ -299,56 +306,48 @@ final class WindowController: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.closeSettingsSidebar() }
         }
+
+        // Clicking a notification is a request to go and look at the tab that sent it,
+        // which means dropping the panel first if it is up.
+        notificationClickObserver = NotificationCenter.default.addObserver(
+            forName: TerminalNotifier.didActivateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notif in
+            let tabID = notif.userInfo?[TerminalNotifier.tabIDKey] as? String
+            Task { @MainActor in
+                guard let self, let tabID else { return }
+                if self.state == .hidden { self.show() }
+                self.tabManager.revealTab(id: tabID)
+            }
+        }
     }
 
     // MARK: - Key Monitor (layout-independent, Chrome-style)
 
-    private static let kVK_Tab: UInt16 = 48
-    private static let kVK_T: UInt16 = 17
-    private static let kVK_W: UInt16 = 13
-    private static let kVK_Comma: UInt16 = 43
-    private static let kVK_P: UInt16 = 35
-    private static let kVK_LeftBracket: UInt16 = 33
-    private static let kVK_RightBracket: UInt16 = 30
-    private static let kVK_D: UInt16 = 2
-    private static let kVK_F: UInt16 = 3
-    private static let kVK_G: UInt16 = 5
-    private static let kVK_1: UInt16 = 18
-    private static let kVK_2: UInt16 = 19
-    private static let kVK_3: UInt16 = 20
-    private static let kVK_4: UInt16 = 21
-    private static let kVK_5: UInt16 = 23
-    private static let kVK_6: UInt16 = 22
-    private static let kVK_7: UInt16 = 26
-    private static let kVK_8: UInt16 = 28
-    private static let kVK_9: UInt16 = 25
+    /// Key codes and shortcuts live in `KeyCode` / `ActionShortcut` now — they were
+    /// private constants here only because the switch that used them was here too.
 
-    private static let digitKeyCodes: [UInt16: Int] = [
-        kVK_1: 1, kVK_2: 2, kVK_3: 3, kVK_4: 4, kVK_5: 5,
-        kVK_6: 6, kVK_7: 7, kVK_8: 8, kVK_9: 9,
-    ]
+    /// Every action this app has, built once. See `ActionRegistry` for why there is one
+    /// list and not one per consumer.
+    lazy var actions: [AppAction] = ActionRegistry.actions(for: self)
 
     private func setupKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.panel.isKeyWindow else { return event }
-            let cmd = event.modifierFlags.contains(.command)
-            let shift = event.modifierFlags.contains(.shift)
-            let ctrl = event.modifierFlags.contains(.control)
-            let key = event.keyCode
 
-            // Ctrl+Tab / Ctrl+Shift+Tab → next/prev tab
-            if ctrl && key == Self.kVK_Tab {
-                if shift {
-                    self.tabManager.selectPreviousTab()
-                } else {
-                    self.tabManager.selectNextTab()
-                }
+            // ⌘P → the command palette. Handled before the registry because it is the
+            // one action that is about the registry rather than in it.
+            if event.modifierFlags.contains(.command),
+               !event.modifierFlags.contains(.shift),
+               event.keyCode == KeyCode.p {
+                self.showCommandPalette.toggle()
                 return nil
             }
 
-            guard cmd else { return event }
-
-            // Configurable next/prev tab shortcuts (via KeyboardShortcuts recorder)
+            // Whatever the user set in Settings wins over the built-in bindings, so it
+            // is checked first — the point of a configurable shortcut is that it beats
+            // the default.
             if self.eventMatchesShortcut(event, for: .nextTab) {
                 self.tabManager.selectNextTab()
                 return nil
@@ -358,70 +357,9 @@ final class WindowController: ObservableObject {
                 return nil
             }
 
-            // ⌘1-8 → select tab N, ⌘9 → last tab (Chrome behavior)
-            if !shift, let digit = Self.digitKeyCodes[key] {
-                if digit == 9 {
-                    self.tabManager.selectTab(at: self.tabManager.tabs.count - 1)
-                } else {
-                    self.tabManager.selectTab(at: digit - 1)
-                }
+            if let action = ActionRegistry.action(matching: event, in: self.actions) {
+                action.perform()
                 return nil
-            }
-
-            switch key {
-            case Self.kVK_T where shift:
-                // ⌘⇧T → reopen last closed tab
-                self.tabManager.reopenClosedTab()
-                return nil
-            case Self.kVK_T where !shift:
-                self.tabManager.addTab()
-                return nil
-            case Self.kVK_W where !shift:
-                // ⌘W → close focused pane (if split) or close tab
-                if let tab = self.tabManager.activeTab, tab.kind == .terminal,
-                   let pm = tab.paneManager, pm.rootPane.leafCount > 1 {
-                    self.tabManager.closeActivePane()
-                } else if let tab = self.tabManager.activeTab {
-                    self.tabManager.closeTab(id: tab.id)
-                }
-                return nil
-            case Self.kVK_D where !shift:
-                // ⌘D → split horizontal (side by side)
-                self.tabManager.splitActivePane(axis: .horizontal)
-                return nil
-            case Self.kVK_D where shift:
-                // ⌘⇧D → split vertical (top/bottom)
-                self.tabManager.splitActivePane(axis: .vertical)
-                return nil
-            case Self.kVK_P where shift:
-                // ⌘⇧P → toggle pin
-                self.isPinned.toggle()
-                return nil
-            case Self.kVK_Comma where !shift:
-                self.openSettings()
-                return nil
-            case Self.kVK_LeftBracket where !shift:
-                // ⌘[ → previous pane
-                self.tabManager.moveFocusInActiveTab(.previous)
-                return nil
-            case Self.kVK_RightBracket where !shift:
-                // ⌘] → next pane
-                self.tabManager.moveFocusInActiveTab(.next)
-                return nil
-            case Self.kVK_F where !shift:
-                // ⌘F → show find bar
-                self.tabManager.activeTab?.instance?.backend.showFindBar()
-                return nil
-            case Self.kVK_G where !shift:
-                // ⌘G → find next
-                self.tabManager.activeTab?.instance?.backend.findNext()
-                return nil
-            case Self.kVK_G where shift:
-                // ⌘⇧G → find previous
-                self.tabManager.activeTab?.instance?.backend.findPrevious()
-                return nil
-            default:
-                break
             }
 
             return event

@@ -54,7 +54,7 @@ final class GhosttyBackend: NSObject, TerminalBackend {
     // MARK: - Split surface creation
 
     /// Create a new GhosttyBackend for a split pane, inheriting config from this surface.
-    func createSplitSurface() -> GhosttyBackend? {
+    func createSplitSurface(directory: String? = nil) -> GhosttyBackend? {
         guard let surface, let app = GhosttyApp.shared.app else { return nil }
 
         let newBackend = GhosttyBackend()
@@ -76,10 +76,22 @@ final class GhosttyBackend: NSObject, TerminalBackend {
         config.scale_factor = Double(scale)
 
         newBackend.environment = environment
-        withEnvVars(environment) { vars, count in
-            config.env_vars = vars
-            config.env_var_count = count
-            newBackend.surface = ghostty_surface_new(app, &config)
+        // `working_directory` has to outlive the call, so the surface is created
+        // inside `withCString` rather than after it.
+        func makeSurface() {
+            withEnvVars(environment) { vars, count in
+                config.env_vars = vars
+                config.env_var_count = count
+                newBackend.surface = ghostty_surface_new(app, &config)
+            }
+        }
+        if let directory, !directory.isEmpty {
+            directory.withCString { cwd in
+                config.working_directory = cwd
+                makeSurface()
+            }
+        } else {
+            makeSurface()
         }
         guard newBackend.surface != nil else {
             os_log(.error, log: log, "Failed to create split surface")
@@ -95,8 +107,8 @@ final class GhosttyBackend: NSObject, TerminalBackend {
         return newBackend
     }
 
-    func createSplitBackend() -> TerminalBackend? {
-        if let split = createSplitSurface() {
+    func createSplitBackend(directory: String?) -> TerminalBackend? {
+        if let split = createSplitSurface(directory: directory) {
             return split
         }
         #if DEBUG
@@ -381,8 +393,25 @@ final class GhosttyBackend: NSObject, TerminalBackend {
             }
             return true
 
+        case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
+            // Where the agents actually speak. See `TerminalNotifier` for why this,
+            // and not the bell, is the channel that carries.
+            let notification = action.action.desktop_notification
+            let title = notification.title.map { String(cString: $0) } ?? ""
+            let body = notification.body.map { String(cString: $0) } ?? ""
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.terminalRequestedNotification(title: title, body: body)
+            }
+            return true
+
         case GHOSTTY_ACTION_RING_BELL:
-            return true // Suppress terminal bell
+            // The second path, for a program that found no richer channel. Returning
+            // true still suppresses the system beep — the sound, if any, is ours to
+            // make, and only when you are not already looking at the tab.
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.terminalRangBell()
+            }
+            return true
 
         // Split pane actions — delegate to PaneManager via TerminalInstance
         case GHOSTTY_ACTION_NEW_SPLIT:

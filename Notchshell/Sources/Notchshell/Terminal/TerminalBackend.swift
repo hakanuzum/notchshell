@@ -37,7 +37,10 @@ protocol TerminalBackend: AnyObject {
     func readBuffer(lineCount: Int) -> TerminalBufferSnapshot
 
     // Split
-    func createSplitBackend() -> TerminalBackend?
+    /// `directory` overrides the cwd a split would otherwise inherit from its source.
+    /// Only session restore passes one — a split you make by hand should land where
+    /// the pane you split was, which is what inheriting already does.
+    func createSplitBackend(directory: String?) -> TerminalBackend?
 
     /// Whether this surface is on screen. A backend that renders on its own thread
     /// has no way to know the panel dropped away, and keeps drawing until told.
@@ -48,7 +51,8 @@ protocol TerminalBackend: AnyObject {
 }
 
 extension TerminalBackend {
-    func createSplitBackend() -> TerminalBackend? { nil }
+    func createSplitBackend(directory: String?) -> TerminalBackend? { nil }
+    func createSplitBackend() -> TerminalBackend? { createSplitBackend(directory: nil) }
     func setVisible(_ visible: Bool) {}
 
     /// A protocol requirement cannot carry a default argument, so the three-argument
@@ -72,6 +76,10 @@ protocol TerminalBackendDelegate: AnyObject {
     func terminalRequestedResizeSplit(direction: UInt32, amount: UInt16)
     func terminalRequestedEqualizeSplits()
     func terminalRequestedToggleSplitZoom()
+    /// OSC 9 / OSC 777 — a program asking for attention, with something to say.
+    func terminalRequestedNotification(title: String, body: String)
+    /// BEL — the same ask, from a program with no richer channel to say it on.
+    func terminalRangBell()
 }
 
 extension TerminalBackendDelegate {
@@ -81,6 +89,8 @@ extension TerminalBackendDelegate {
     func terminalRequestedResizeSplit(direction: UInt32, amount: UInt16) {}
     func terminalRequestedEqualizeSplits() {}
     func terminalRequestedToggleSplitZoom() {}
+    func terminalRequestedNotification(title: String, body: String) {}
+    func terminalRangBell() {}
 }
 
 extension TerminalBackend {

@@ -28,8 +28,16 @@ struct PaneSplitView: View {
         self.theme = theme
     }
 
+    /// A zoomed tab renders the focused leaf on its own. The other panes leave the
+    /// view tree but keep their backends — `PaneManager` owns the instances, and
+    /// `makeNSView` hands the same `backend.view` back when the zoom ends.
     private var node: PaneNode {
-        explicitNode ?? paneManager.rootPane
+        if let explicitNode { return explicitNode }
+        if paneManager.isZoomed,
+           let zoomed = paneManager.rootPane.leafNode(for: paneManager.focusedPaneID) {
+            return zoomed
+        }
+        return paneManager.rootPane
     }
 
     /// Minimum pane size in points.
@@ -41,8 +49,11 @@ struct PaneSplitView: View {
             ZStack {
                 TerminalContentView(backend: backend, theme: theme)
 
-                // Focus indicator when multiple panes exist
-                if paneManager.focusedPaneID == id && paneManager.rootPane.leafCount > 1 {
+                // Focus indicator when multiple panes are actually on screen. Zoomed,
+                // there is only one — a border round the whole tab marks nothing.
+                if paneManager.focusedPaneID == id
+                    && paneManager.rootPane.leafCount > 1
+                    && !paneManager.isZoomed {
                     RoundedRectangle(cornerRadius: 2)
                         .stroke(Color.accentColor.opacity(0.6), lineWidth: 2)
                         .padding(1)
@@ -64,6 +75,11 @@ struct PaneSplitView: View {
                 Divider()
 
                 if paneManager.rootPane.leafCount > 1 {
+                    Button(paneManager.isZoomed ? "Zoom Out" : "Zoom Pane") {
+                        paneManager.focusedPaneID = id
+                        paneManager.toggleZoom()
+                    }
+
                     Button("Close Pane") {
                         paneManager.closePane(id: id)
                     }
