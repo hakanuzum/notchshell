@@ -85,48 +85,50 @@ A terminal, not a cockpit — it just happens to know which agent is waiting for
 
 ## How it compares
 
-The terminal itself is [Ghostty](https://ghostty.org), so the engine rows are its
-answers rather than ours — which is the point of embedding it, and why the Ghostty
-column reads almost the same. The rows below the break are the ones this app adds, and
-they are the reason it exists.
+The terminal is [Ghostty](https://ghostty.org), so this first table is mostly its
+answers rather than ours — which is the point of embedding it.
 
-| | Notchshell | Ghostty | iTerm2 | WezTerm | Kitty | Alacritty |
+| Terminal | Notchshell | Ghostty | iTerm2 | WezTerm | Kitty | Alacritty |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| GPU acceleration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| True colour (24-bit) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Font ligatures | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| GPU rendering | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| True colour | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Ligatures | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Unicode | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Styled underlines | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Synchronized output | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Kitty keyboard protocol | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Kitty keyboard | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
 | OSC 52 clipboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | OSC 8 hyperlinks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Shell integration | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Desktop notifications | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Kitty graphics protocol | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| iTerm2 inline images | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Notifications | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Kitty graphics | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| iTerm2 images | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
 | Sixel | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
 | Tabs | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Split panes | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Built-in multiplexer | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **Drop-down panel** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| **Same session on every Space** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| | | | | | | |
-| **Knows which AI agent is running** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Bundled themes** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Command palette** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **Records the terminal to MP4/GIF** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Finder extension, both directions** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Scriptable over a socket and MCP** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Restores tabs, splits and folders** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Platforms | macOS | macOS · Linux | macOS | macOS · Linux · Windows | macOS · Linux | macOS · Linux · Windows · BSD |
+| Multiplexer | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+
+The second is the app around it, and the reason this exists at all.
+
+| App | Notchshell | Ghostty | iTerm2 | WezTerm | Kitty | Alacritty |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Drop-down panel | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Every Space | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Agent awareness | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Bundled themes | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Command palette | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| Recording | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Finder extension | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Socket + MCP | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Session restore | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Platform | macOS | macOS · Linux | macOS | macOS · Linux · Windows | macOS · Linux | 4 platforms |
 
 Two gaps, both deliberate. Sixel is Ghostty's call — it does the Kitty graphics
-protocol instead. A built-in multiplexer means detach and re-attach, and tabs, splits
-and session restore cover what that is usually reached for.
+protocol instead. A multiplexer means detach and re-attach, and tabs, splits and
+session restore cover what that is usually reached for.
 
-The panel joins every Space, so the hotkey brings down the shell you were already in
-rather than a new window wherever you happen to be.
+*Every Space* means the panel joins all of them, so the hotkey brings down the shell
+you were already in rather than a new window wherever you happen to be.
 
 ---
 
