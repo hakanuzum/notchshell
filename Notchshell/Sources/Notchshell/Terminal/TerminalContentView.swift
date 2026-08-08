@@ -117,10 +117,29 @@ final class TerminalInstance: NSObject, TerminalBackendDelegate {
         return saved
     }
 
+    /// Start the shell, and record where we asked it to start.
+    ///
+    /// `currentDirectory` is otherwise written in exactly one place —
+    /// `GHOSTTY_ACTION_PWD`, which is the shell reporting its own directory over OSC 7
+    /// through Ghostty's shell integration. Where that integration is not in effect (a
+    /// shell it does not cover, an rc file that replaces the hook it installs) the field
+    /// stays empty for the life of the pane, and everything keyed on it degrades in
+    /// silence: opening a folder from Finder stops finding the tab already sitting there
+    /// and opens another every time, ⌘⇧T forgets where a closed tab was, and a restored
+    /// session comes back at home. Two machines on the same build can differ on this,
+    /// because what differs is the shell, not the app.
+    ///
+    /// Seeding it means the field reads "the best we know" from the first moment rather
+    /// than "nothing yet": what was asked for, replaced by what the shell reports as soon
+    /// as it says anything. Only when a directory was actually asked for — a plain ⌘T
+    /// tab is left blank rather than guessed at.
     func startShell(in directory: String? = nil, environment: [String: String] = [:]) {
         guard !isTerminated else { return }
         let shell = Self.configuredShell
         let shellName = "-" + (shell as NSString).lastPathComponent
+        if let directory, !directory.isEmpty {
+            currentDirectory = directory
+        }
         backend.startProcess(
             executable: shell, execName: shellName,
             currentDirectory: directory, environment: environment
