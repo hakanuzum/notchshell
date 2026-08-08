@@ -127,6 +127,23 @@ final class TerminalNotifier: NSObject {
 }
 
 extension TerminalNotifier: UNUserNotificationCenterDelegate {
+    /// Show the banner even when Notchshell is the frontmost app.
+    ///
+    /// macOS suppresses notifications from a foreground app unless it says otherwise
+    /// here, and that default is wrong for a terminal: the panel being up and focused
+    /// says nothing about whether you are looking at the tab that called. It is exactly
+    /// the case this feature exists for — an agent finishing in tab two while you work
+    /// in tab three — and without this the banner never appeared for it. Whether the
+    /// notification is worth showing at all was already decided in `TabManager`, which
+    /// stays silent when you *are* on the tab.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,

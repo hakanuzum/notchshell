@@ -29,28 +29,16 @@ A terminal, not a cockpit — it just happens to know which agent is waiting for
 <tbody>
 <tr valign="top">
 <td width="50%">
-
-### It knows which agent is waiting
-
-Run `claude`, `codex`, `gemini` or a dozen others and the tab wears that tool's
-mark. When one finishes — or stops to ask you something — while the panel is
-down, it says so: a notification you can click to land in the right tab, and a
-dot that stays until you look.
-
-Come back to a folder you have worked in before and the mark is still there,
-faded. One click picks the conversation back up.
-
+<img src="docs/media/agents.png" alt="Three tabs: one badge faded, one lit, one carrying an amber dot">
+<h3>It knows which agent is waiting</h3>
+<p>Run <code>claude</code>, <code>codex</code>, <code>gemini</code> or a dozen others and the tab wears that tool's mark. When one finishes — or stops to ask you something — while you are looking elsewhere, it says so: a notification you can click to land in the right tab, and a dot that stays until you look.</p>
+<p>Come back to a folder you have worked in before and the mark is still there, faded. One click picks the conversation back up.</p>
 </td>
 <td width="50%">
-
-### Everything it does, one keystroke away
-
-<kbd>⌘</kbd> <kbd>P</kbd> opens a search box over the terminal: every command,
-every one of the 602 themes, by name.
-
-No dashboards, no side panels, no second app to learn. The terminal keeps the
-screen; the rest gets out of the way.
-
+<img src="docs/media/palette.png" alt="The command palette open over the terminal, filtered to the Nord themes">
+<h3>Everything it does, one keystroke away</h3>
+<p><kbd>⌘</kbd> <kbd>P</kbd> opens a search box over the terminal: every command, every one of the 602 themes, by name.</p>
+<p>No dashboards, no side panels, no second app to learn. The terminal keeps the screen; the rest gets out of the way.</p>
 </td>
 </tr>
 </tbody>
