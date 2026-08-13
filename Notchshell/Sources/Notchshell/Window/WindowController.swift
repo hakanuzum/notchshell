@@ -83,6 +83,25 @@ final class WindowController: ObservableObject {
     /// by two strips of the same weight.
     var tabBarHeight: CGFloat { menuBarHeight }
 
+    /// The rectangle the panel is allowed to occupy.
+    ///
+    /// Sized from `visibleFrame`, so a Dock on the left, on the right or at the bottom
+    /// pushes the panel off that edge instead of being drawn over it — the Dock floats
+    /// above ordinary windows, so a panel measured against the full frame does not win
+    /// that overlap, it just loses a strip of terminal behind the Dock. Hidden Docks
+    /// take no space and so change nothing here.
+    ///
+    /// The top is the exception: it is the *frame's* top, not the visible frame's. The
+    /// panel extends up behind the menu bar on purpose and `PanelContentView` reserves
+    /// that strip itself, so trimming it here would reserve it twice.
+    var panelArea: CGRect {
+        let screen = resolvedScreen
+        let visible = screen.visibleFrame
+        return CGRect(x: visible.minX, y: visible.minY,
+                      width: visible.width,
+                      height: screen.frame.maxY - visible.minY)
+    }
+
     /// The terminal area of the active tab, in window coordinates with a top-left
     /// origin and measured in points — the shape ScreenCaptureKit's `sourceRect` wants.
     ///
@@ -103,8 +122,10 @@ final class WindowController: ObservableObject {
         )
     }
 
+    /// Percentages are of the *visible* frame, so "100%" means edge to edge of the space
+    /// the Dock leaves rather than edge to edge of the display.
     var terminalSize: CGSize {
-        let screen = resolvedScreen.frame
+        let screen = resolvedScreen.visibleFrame
         let width = screen.width * CGFloat(widthPercent) / 100.0
         let height = screen.height * CGFloat(heightPercent) / 100.0
         return CGSize(width: max(width, 300), height: max(height, 150))
@@ -203,14 +224,9 @@ final class WindowController: ObservableObject {
     // MARK: - Panel positioning (fixed frame, no animation)
 
     func repositionPanel() {
-        let screen = resolvedScreen.frame
-        panel.setFrame(NSRect(
-            x: screen.origin.x,
-            y: screen.origin.y,
-            width: screen.width,
-            height: screen.height
-        ), display: true)
-        panelWidth = screen.width
+        let area = panelArea
+        panel.setFrame(area, display: true)
+        panelWidth = area.width
     }
 
     // MARK: - Observers
@@ -482,11 +498,10 @@ final class WindowController: ObservableObject {
 
             // Only handle scroll when mouse is in the tab bar area (top ~36pt below menu bar)
             let mouse = NSEvent.mouseLocation
-            let screen = self.resolvedScreen
-            let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
+            let visible = self.resolvedScreen.visibleFrame
             let termWidth = self.terminalSize.width
-            let termX = screen.frame.midX - termWidth / 2
-            let tabBarTop = screen.frame.maxY - menuBarHeight
+            let termX = visible.midX - termWidth / 2
+            let tabBarTop = visible.maxY
             let tabBarBottom = tabBarTop - 36
 
             guard mouse.y >= tabBarBottom && mouse.y <= tabBarTop
@@ -619,7 +634,7 @@ final class WindowController: ObservableObject {
     // MARK: - Resize (percent-based, no animation to avoid jitter)
 
     func updateHeightByDelta(_ pixelHeight: CGFloat) {
-        let screen = resolvedScreen.frame
+        let screen = resolvedScreen.visibleFrame
         let pct = Int((pixelHeight / screen.height) * 100)
         let clamped = min(max(pct, 20), 100)
         heightPercent = clamped
@@ -627,7 +642,7 @@ final class WindowController: ObservableObject {
     }
 
     func updateWidthByDelta(_ pixelWidth: CGFloat) {
-        let screen = resolvedScreen.frame
+        let screen = resolvedScreen.visibleFrame
         let pct = Int((pixelWidth / screen.width) * 100)
         let clamped = min(max(pct, 30), 100)
         widthPercent = clamped

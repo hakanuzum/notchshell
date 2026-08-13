@@ -40,6 +40,21 @@ final class TerminalPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    /// Take the frame as given.
+    ///
+    /// AppKit otherwise slides a window down until its top clears the menu bar, and
+    /// exempts only windows at least as tall as the screen. The panel used to be exactly
+    /// that — full screen frame — and so escaped the rule by accident. Insetting it for
+    /// the Dock made it shorter, the rule applied, and the panel came to rest a menu
+    /// bar's height too low with a strip of desktop above it. Measured: asked for a top
+    /// at 1474, got 1430.
+    ///
+    /// Being flush under the menu bar is the whole shape of this product, so the panel
+    /// positions itself in screen coordinates and this constraint has no say.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
+
     override func noResponder(for eventSelector: Selector) {
         // Suppress NSBeep — the terminal handles all key events via Ghostty
     }

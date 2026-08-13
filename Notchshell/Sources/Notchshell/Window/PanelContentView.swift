@@ -199,7 +199,7 @@ struct PanelContentView: View {
                 let widthDelta: CGFloat = (edge == .left)
                     ? -value.translation.width * 2
                     : value.translation.width * 2
-                let screen = windowController.resolvedScreen.frame
+                let screen = windowController.resolvedScreen.visibleFrame
                 let newW = max(dragStartSize.width + widthDelta, 300)
                 let newH = max(dragStartSize.height + value.translation.height, 150)
                 resizePreview = CGSize(
@@ -219,14 +219,14 @@ struct PanelContentView: View {
     }
 
     private var horizontalInset: CGFloat {
-        let screenW = windowController.resolvedScreen.frame.width
+        let screenW = windowController.resolvedScreen.visibleFrame.width
         return max((screenW - fullWidth) / 2, 0)
     }
 
     var body: some View {
         let screenW = windowController.panelWidth > 0
             ? windowController.panelWidth
-            : windowController.resolvedScreen.frame.width
+            : windowController.resolvedScreen.visibleFrame.width
 
         ZStack(alignment: .topLeading) {
             Color.clear
