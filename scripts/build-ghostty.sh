@@ -41,13 +41,22 @@ CURRENT_SHA=$(
     } | shasum -a 256 | cut -d' ' -f1
 )
 
-# Check cache
-if [ -f "$CACHE_FILE" ] && [ -d "$XCFRAMEWORK_DIR" ]; then
+# Check cache. The stamp alone is not enough: the directory can survive with only its
+# headers — a partial checkout, an interrupted build, a copy that dropped the large
+# file — and the stamp then reports "up to date" for a framework that cannot link. The
+# failure lands later, in the app build, as a missing libghostty-fat.a with no mention
+# of this script, which reads as a broken checkout. Ask for the library itself.
+# Any slice will do — the directory is named for the target, so --universal produces a
+# different one than a native build and naming it here would force a rebuild every time.
+HAS_LIBRARY=$(find "$XCFRAMEWORK_DIR" -name '*.a' -type f 2>/dev/null | head -1)
+if [ -f "$CACHE_FILE" ] && [ -n "$HAS_LIBRARY" ]; then
     CACHED_SHA=$(cat "$CACHE_FILE")
     if [ "$CURRENT_SHA" = "$CACHED_SHA" ]; then
         echo "GhosttyKit.xcframework is up to date (SHA: ${CURRENT_SHA:0:12})"
         exit 0
     fi
+elif [ -f "$CACHE_FILE" ]; then
+    echo "==> Stamp is current but the xcframework carries no library; rebuilding"
 fi
 
 TARGET_FLAG="-Dxcframework-target=native"
