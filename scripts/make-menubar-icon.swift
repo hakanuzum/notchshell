@@ -74,6 +74,68 @@ guard let (mask, box) = silhouette(), let cropped = mask.cropping(to: box) else 
     exit(1)
 }
 
+/// Thicken the alpha so the thinnest stroke still covers a whole pixel once drawn.
+///
+/// A template image is painted as one flat tint at the coverage its alpha reports, so
+/// a stroke that lands half a pixel wide is not a thin black line — it is a grey one.
+/// The mark is line art at 16pt beside system glyphs that are solid, so a mark left
+/// untouched reads as disabled rather than as fine. Measured on the acoustic coupler:
+/// its strokes are ~13px in the 1024 artwork, which is 0.7px at 16pt on a 2x display.
+///
+/// Dilation is done here, at the artwork's own resolution, because it is the last point
+/// where a stroke is still many pixels wide and can be grown smoothly. The radius is
+/// expressed in *drawn* pixels and converted, so it holds if the mark or the artwork
+/// size changes. Fine detail merges — the coupler's coiled cord becomes a single mass —
+/// which is what a 32px-tall drawing can carry anyway.
+let drawnHeight = 32.0          // 16pt, on a 2x display: the smallest it is ever drawn
+let growth = 0.6                // extra stroke width, in drawn pixels
+let radius = Int((growth / 2 * (Double(box.height) / drawnHeight)).rounded())
+
+/// Separable max filter. A square kernel, run once across and once down, costs r+r
+/// passes per pixel instead of r², and on strokes this irregular the difference from a
+/// circular kernel is not visible.
+func dilated(_ image: CGImage, radius r: Int) -> CGImage? {
+    guard r > 0 else { return image }
+    let w = image.width, h = image.height
+    var buffer = [UInt8](repeating: 0, count: w * h * 4)
+    CGContext(data: &buffer, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+              space: CGColorSpaceCreateDeviceRGB(),
+              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?
+        .draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+
+    var alpha = (0..<(w * h)).map { buffer[$0 * 4 + 3] }
+    var pass = alpha
+    for y in 0..<h {                                   // across
+        for x in 0..<w {
+            var peak: UInt8 = 0
+            for k in max(0, x - r)...min(w - 1, x + r) where alpha[y * w + k] > peak {
+                peak = alpha[y * w + k]
+            }
+            pass[y * w + x] = peak
+        }
+    }
+    alpha = pass
+    for x in 0..<w {                                   // and down
+        for y in 0..<h {
+            var peak: UInt8 = 0
+            for k in max(0, y - r)...min(h - 1, y + r) where alpha[k * w + x] > peak {
+                peak = alpha[k * w + x]
+            }
+            pass[y * w + x] = peak
+        }
+    }
+
+    for i in 0..<(w * h) {
+        buffer[i * 4] = 0; buffer[i * 4 + 1] = 0; buffer[i * 4 + 2] = 0
+        buffer[i * 4 + 3] = pass[i]
+    }
+    return CGContext(data: &buffer, width: w, height: h, bitsPerComponent: 8,
+                     bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+}
+
+guard let thickened = dilated(cropped, radius: radius) else { exit(1) }
+
 let aspect = box.width / box.height
 let outputWidth = Int((CGFloat(outputHeight) * aspect).rounded())
 guard let ctx = CGContext(data: nil, width: outputWidth, height: outputHeight,
@@ -81,7 +143,7 @@ guard let ctx = CGContext(data: nil, width: outputWidth, height: outputHeight,
                           space: CGColorSpaceCreateDeviceRGB(),
                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { exit(1) }
 ctx.interpolationQuality = .high
-ctx.draw(cropped, in: CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight))
+ctx.draw(thickened, in: CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight))
 
 let rep = NSBitmapImageRep(cgImage: ctx.makeImage()!)
 rep.size = NSSize(width: outputWidth, height: outputHeight)
@@ -89,4 +151,5 @@ guard let data = rep.representation(using: .png, properties: [:]) else { exit(1)
 try data.write(to: URL(fileURLWithPath: arguments[2]))
 
 print("mark    : \(Int(box.width))x\(Int(box.height)) of \(w)x\(h) (aspect \(String(format: "%.2f", aspect)):1)")
+print("dilated : radius \(radius)px — +\(String(format: "%.1f", growth))px of stroke at \(Int(drawnHeight))px tall")
 print("wrote   : \(arguments[2]) at \(outputWidth)x\(outputHeight)")

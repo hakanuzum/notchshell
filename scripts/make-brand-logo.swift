@@ -11,11 +11,13 @@
 // artwork rather than redrawn, so the silhouette that is part of the brand survives
 // the change of mark exactly. Only the mark is replaced.
 //
-// The new mark looks transparent but is not: it was exported as RGB with the editor's
-// checkerboard baked in, so its alpha channel is opaque everywhere and keying on alpha
-// yields a solid rectangle. The ink is pure black and the checker is two light greys,
-// so coverage is read from darkness instead. It is painted in the brand accent
-// sampled from the old artwork.
+// Coverage is read from darkness, not from alpha. That began as a workaround — the
+// first replacement mark was exported as RGB with the editor's checkerboard baked in,
+// so its alpha was opaque everywhere and keying on it yielded a solid rectangle — and
+// it is now the interface: give this script black ink on a light page at any size, and
+// it recovers the drawing including its antialiased edge. An SVG becomes that with
+// scripts/rasterise-svg.swift. The ink is then painted in the brand accent sampled
+// from the old artwork.
 
 import AppKit
 
@@ -27,10 +29,13 @@ guard arguments.count >= 4 else {
 
 let canvas = 1024
 
-/// How much of the plate's width the mark spans. The old mark is a long skull that
-/// reads horizontally; this one is a compact round fruit, and a round mark inside a
-/// round plate needs more clearance than a wide one to avoid looking wedged in.
-let markFill: CGFloat = 0.62
+/// How much of the plate's width the mark spans. A round mark inside a round plate
+/// needs more clearance than a wide one to avoid looking wedged in, so this tracks the
+/// mark's shape: 0.62 while it was a compact round fruit, 0.72 now that it is a wide
+/// acoustic coupler. The scale is fitted to the longer side, so a wide mark set to the
+/// same fraction as a round one lands visibly smaller — 0.62 left this one adrift in
+/// the middle of the disc.
+let markFill: CGFloat = 0.72
 
 /// Brand accent, measured from the old artwork.
 let accent = (r: 0.0, g: 248.0, b: 136.0)

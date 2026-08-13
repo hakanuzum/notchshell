@@ -25,7 +25,10 @@ guard arguments.count >= 3 else {
 /// Rendered edge, in pixels. Eight times the ~16pt Finder draws the mark at, so even a
 /// 2x display resamples down.
 let side = 128
-/// Share of the canvas the mark's taller side covers.
+/// Share of the canvas the mark's *longer* side covers — whichever side that is. Fixing
+/// the height instead reads the same while the mark is taller than it is wide, and
+/// silently inflates a wide one: at 1.27:1 a 72%-tall mark is 92% wide, and width is
+/// exactly what the Finder toolbar takes its button size from.
 let fill = 0.72
 
 guard let image = NSImage(contentsOfFile: arguments[1]),
@@ -34,8 +37,10 @@ guard let image = NSImage(contentsOfFile: arguments[1]),
     exit(1)
 }
 
-let markHeight = (Double(side) * fill).rounded()
-let markWidth = (markHeight * Double(source.width) / Double(source.height)).rounded()
+let longest = (Double(side) * fill).rounded()
+let aspect = Double(source.width) / Double(source.height)
+let markWidth = (aspect >= 1 ? longest : (longest * aspect)).rounded()
+let markHeight = (aspect >= 1 ? (longest / aspect) : longest).rounded()
 
 guard let ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
                           bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
