@@ -200,9 +200,12 @@ struct WindowControllerTerminalSizeTests {
         #expect(wc.terminalSize.height >= 150)
     }
 
-    @Test func terminalSize_calculatesFromPercents() {
+    /// Percentages are of the visible frame, not the display: "100%" means as much as
+    /// the Dock leaves. Asserting against `frame` here passed only while the Dock was
+    /// assumed to take nothing.
+    @Test func terminalSize_calculatesFromPercentsOfTheVisibleFrame() {
         let wc = WindowController()
-        let screen = wc.resolvedScreen.frame
+        let screen = wc.resolvedScreen.visibleFrame
         wc.setWidthPercent(50)
         wc.setHeightPercent(50)
         let expected = CGSize(
@@ -211,6 +214,22 @@ struct WindowControllerTerminalSizeTests {
         )
         #expect(wc.terminalSize.width == expected.width)
         #expect(wc.terminalSize.height == expected.height)
+    }
+
+    /// The panel gives the Dock its strip on whichever edge it sits, and gives up
+    /// nothing at the top — being flush under the menu bar is the shape of the product.
+    /// Both halves are load-bearing and one has already been lost once: insetting the
+    /// panel for the Dock made it shorter than the screen, which let AppKit's
+    /// "keep the window below the menu bar" rule apply to it for the first time.
+    @Test func panelArea_meetsTheMenuBarAndClearsTheDock() {
+        let wc = WindowController()
+        let screen = wc.resolvedScreen
+        let area = wc.panelArea
+
+        #expect(area.maxY == screen.frame.maxY)
+        #expect(area.minX == screen.visibleFrame.minX)
+        #expect(area.maxX == screen.visibleFrame.maxX)
+        #expect(area.minY == screen.visibleFrame.minY)
     }
 }
 
