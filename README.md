@@ -85,27 +85,27 @@ A terminal, not a cockpit — it just happens to know which agent is waiting for
 
 ## Install
 
-<table width="100%">
-<tbody>
-<tr valign="top">
-<td width="52%">
-<img src="docs/media/installer.png" alt="The installer window: drag Notchshell onto Applications">
-</td>
-<td width="48%">
-<p><b>Homebrew</b></p>
-<pre><code>brew tap hakanuzum/notchshell
+<div align="center">
+<img src="docs/media/installer.png" width="560" alt="The installer window: drag Notchshell onto Applications">
+</div>
+
+**Homebrew**
+
+```bash
+brew tap hakanuzum/notchshell
 brew trust hakanuzum/notchshell
-brew install --cask notchshell</code></pre>
-<p><code>brew trust</code> is Homebrew's own requirement for every tap outside its official ones, asked once. The cask clears the quarantine flag itself, so nothing stops the first launch.</p>
-<p><b>Or the disk image</b></p>
-<p>Download the latest <code>.dmg</code> from <a href="https://github.com/hakanuzum/notchshell/releases/latest"><b>Releases</b></a>, open it, and drag the app onto Applications.</p>
-<p>The build is signed ad-hoc rather than notarized, so Gatekeeper stops the first launch. Right-click the app in <code>/Applications</code> and choose <b>Open</b> once; after that it opens normally.</p>
-<p>Notchshell lives in the menu bar and has no Dock icon.</p>
-<p>It drops flush under the menu bar and stays clear of the Dock, so a Dock on the left or right costs the panel that strip. It looks best with the Dock at the bottom, where the panel gets the full width.</p>
-</td>
-</tr>
-</tbody>
-</table>
+brew install --cask notchshell
+```
+
+`brew trust` is Homebrew's own requirement for taps outside its official ones, asked once.
+
+**Or the disk image** — download the latest `.dmg` from
+[Releases](https://github.com/hakanuzum/notchshell/releases/latest) and drag the app onto
+Applications. It is signed ad-hoc rather than notarized, so right-click it in
+`/Applications` and choose **Open** once; after that it opens normally.
+
+Notchshell lives in the menu bar with no Dock icon, and looks best with the Dock at the
+bottom, where the panel gets the full width.
 
 ---
 
