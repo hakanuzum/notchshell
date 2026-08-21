@@ -45,8 +45,16 @@ Settings. It is what a shell needs to read `~/Library/Mail`, another app's
 container, or a Time Machine volume. Everything else works without it, so the app
 does not nag — it is documented where someone hits the wall instead.
 
-**Accessibility** is for controlling other applications. This app has no reason to,
-and asking for it would be a red flag on a terminal.
+**Accessibility** is for controlling other applications, and a terminal asking for
+it at launch would be a red flag. It is asked for once, in context, for one narrow
+job: ⌘Tab away from the panel to an app whose only windows are minimized, and macOS
+activates the app but leaves the window in the Dock — the switch lands on an empty
+screen. `MinimizedWindowRestorer` finishes that switch by flipping the window's
+`AXMinimized`, which is the one thing the grant is used for. The system prompt is
+raised the first time a restore would actually have happened — the moment the
+feature is visibly failing — and never again; declined, everything else works and
+that one switch behaves the way stock macOS does. Like Screen Recording, there is
+no usage-description key: the timing has to carry the explanation.
 
 **Screen Recording** is asked for, but only when the user presses record.
 

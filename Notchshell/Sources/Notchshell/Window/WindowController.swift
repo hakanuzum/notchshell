@@ -58,6 +58,11 @@ final class WindowController: ObservableObject {
     private var scrollAccumulator: CGFloat = 0
     private var lastScrollTime: Date = .distantPast
 
+    /// When the last global mouse click happened. ⌘Tab and a click both end with
+    /// another app frontmost; this is what tells them apart — see
+    /// `restoreSwitchedToAppIfBuried`.
+    private var lastGlobalClickAt: Date = .distantPast
+
     // Persisted
     @AppStorage("terminalWidthPercent") private var savedWidthPercent: Int = 100
     @AppStorage("terminalHeightPercent") private var savedHeightPercent: Int = WindowController.defaultHeightPercent
@@ -272,6 +277,9 @@ final class WindowController: ObservableObject {
                 if app.bundleIdentifier != Bundle.main.bundleIdentifier {
                     if self.isPinned {
                         self.panel.resignKey()
+                        // A pinned panel never reaches hide(), so the ⌘Tab-to-a-
+                        // buried-app case has to be finished here too.
+                        self.restoreSwitchedToAppIfBuried()
                     } else {
                         // Same reason as the resign handler: an app on the arriving Space
                         // activates during a swipe, and we must not race the Space handler
@@ -413,6 +421,7 @@ final class WindowController: ObservableObject {
             guard let self else { return }
             let mouse = NSEvent.mouseLocation
             Task { @MainActor in
+                self.lastGlobalClickAt = Date()
                 guard self.shouldAutoHide() else { return }
                 // Theme popover is a separate window — don't hide when clicking it.
                 if NSApp.windows.contains(where: { $0.isVisible && $0.frame.contains(mouse) }) {
@@ -580,6 +589,25 @@ final class WindowController: ObservableObject {
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
+    /// Finish a ⌘Tab that would otherwise land on an empty screen.
+    ///
+    /// Runs at the start of every hide. If the hide is happening because the user has
+    /// already put another app in front, and everything that app has is minimized,
+    /// bring its last window back out of the Dock — macOS activates the app on ⌘Tab
+    /// but leaves the window minimized, so without this the switch visibly fails.
+    ///
+    /// The click gate is what separates "bring me this app" from "get out of the
+    /// way". A ⌘Tab arrives with no mouse click; a click-away arrives right after
+    /// one — and a click names a window, not an app. Clicking a visible window needs
+    /// no restore, and clicking the desktop activates Finder without asking for any
+    /// window at all, so a recent click means leave the Dock alone.
+    private func restoreSwitchedToAppIfBuried() {
+        guard let front = NSWorkspace.shared.frontmostApplication,
+              front.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        guard Date().timeIntervalSince(lastGlobalClickAt) > 1.0 else { return }
+        MinimizedWindowRestorer.restoreIfAllWindowsMinimized(in: front)
+    }
+
     /// Go down, and hand focus to `app` rather than to whoever was in front before.
     ///
     /// Handing a folder to an editor is the case: the editor comes forward, and half a
@@ -594,6 +622,8 @@ final class WindowController: ObservableObject {
 
     func hide() {
         guard state == .visible else { return }
+
+        restoreSwitchedToAppIfBuried()
 
         if UserDefaults.standard.bool(forKey: "disableAnimation") {
             state = .hidden
