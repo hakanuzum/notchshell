@@ -622,7 +622,20 @@ final class WindowController: ObservableObject {
             // Hand focus back, and if there is nobody to hand it to, put it down.
             // Staying active with no window is what makes an invisible terminal eat the
             // shortcuts meant for whatever is on screen.
-            if let prev = self.previousApp, !prev.isTerminated {
+            //
+            // But only if the focus is still ours to hand. A ⌘Tab or a click on another
+            // app's window both hides the panel *and* names a destination — the app the
+            // user just chose is frontmost by the time this block runs, and activating
+            // `previousApp` over it would take the focus straight back off it. That is
+            // not hypothetical: switch to an editor with the panel down and the browser
+            // the panel had been opened over came forward instead. Restoring the
+            // pre-panel app is only right when the hide was our own doing (hotkey,
+            // Escape, menu bar), and in exactly those cases this app is still the
+            // active one.
+            let front = NSWorkspace.shared.frontmostApplication
+            if let front, front.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                // The user already picked where the focus goes. Leave it there.
+            } else if let prev = self.previousApp, !prev.isTerminated {
                 prev.activate()
             } else {
                 NSApp.hide(nil)
