@@ -74,10 +74,24 @@ app at launch, so a user who grants it mid-session is still denied until they
 relaunch. `PanelRecorder` reports that case separately rather than leaving a record
 button that silently does nothing.
 
-## Ad-hoc signing loses grants on every rebuild
+## Grants survive updates only under a stable signature
 
-TCC keys its grants on the code signature. An ad-hoc build gets a fresh signature
-each time it is built, so every permission the user granted is forgotten and asked
-again. This is a property of unsigned development builds, not a bug to fix — but it
-does mean permission behaviour cannot be judged from a dev build. A Developer
-ID-signed, notarised build keeps its grants across updates.
+TCC keys its grants on the code signature — concretely, on the designated
+requirement, which names the bundle identifier and the signing certificate. An
+ad-hoc build gets a fresh signature each time it is built, so every permission the
+user granted is forgotten and asked again — on the developer's machine at every
+rebuild, and worse, on every user's machine at every shipped update.
+
+The fix is signing every build with one long-lived certificate, so the app has one
+identity for life: a grant given once survives updates, and only a genuinely new
+permission is ever asked for again. `scripts/make-signing-cert.sh` creates a
+self-signed one and `NOTCHSHELL_SIGNING_IDENTITY` points builds at it. A Developer
+ID does the same job and adds notarization; moving to one later costs a single
+re-grant — the same price as the move off ad-hoc — because the certificate in the
+designated requirement changes once.
+
+Two things this does *not* change: Gatekeeper still treats the app as unsigned
+(self-signed is not notarised, so the Homebrew cask's quarantine-stripping
+`postflight` stays), and Sparkle updates still validate against the EdDSA key, not
+the code signature, so ad-hoc installs update into stable-signature builds
+normally.
