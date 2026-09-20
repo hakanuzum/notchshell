@@ -1,3 +1,5 @@
+
+
 <div align="center">
 
 <img src="docs/media/logo.png" width="104" alt="">
@@ -407,7 +409,7 @@ you are in.
 <tr><td>Pin / unpin</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>P</kbd></td><td>Next&nbsp;/ previous pane</td><td><kbd>⌘</kbd> <kbd>]</kbd> · <kbd>⌘</kbd> <kbd>[</kbd></td></tr>
 <tr><td>New tab&nbsp;· clone&nbsp;· close</td><td><kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>T</kbd> · <kbd>⌘</kbd> <kbd>W</kbd></td><td>Zoom pane</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↩</kbd></td></tr>
 <tr><td>Reopen closed tab</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>T</kbd></td><td>Copy · paste</td><td><kbd>⌘</kbd> <kbd>C</kbd> · <kbd>⌘</kbd> <kbd>V</kbd></td></tr>
-<tr><td>Next&nbsp;/ previous tab</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>]</kbd> · <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>[</kbd></td><td>Clear screen&nbsp;· find</td><td><kbd>⌘</kbd> <kbd>K</kbd> · <kbd>⌘</kbd> <kbd>F</kbd></td></tr>
+<tr><td>Next&nbsp;/ previous tab</td><td><kbd>⌃</kbd> <kbd>⇥</kbd> · <kbd>⌃</kbd> <kbd>⇧</kbd> <kbd>⇥</kbd></td><td>Clear screen&nbsp;· find</td><td><kbd>⌘</kbd> <kbd>K</kbd> · <kbd>⌘</kbd> <kbd>F</kbd></td></tr>
 <tr><td>Go to tab 1–9</td><td><kbd>⌘</kbd> <kbd>1</kbd> – <kbd>⌘</kbd> <kbd>9</kbd></td><td>Command palette</td><td><kbd>⌘</kbd> <kbd>P</kbd></td></tr>
 <tr><td>Rename tab</td><td>double-click</td><td>Settings · Help</td><td><kbd>⌘</kbd> <kbd>,</kbd> · <kbd>⌘</kbd> <kbd>/</kbd></td></tr>
 </tbody>
